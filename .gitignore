@@ -145,3 +145,10 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Bun 관련
+bun.lock
+.bun-*
+.cache/bun-*
+bunfig.local.toml
+bun-out/
