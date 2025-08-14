@@ -66,3 +66,12 @@ Bun + Vite + React + TypeScript 프로젝트의 기본 구성 요소를 포함�
 ├─ tsconfig.node.json
 ├─ vite.config.ts
 └─ README.md
+
+### 스크립트
+
+- dev -> vite
+- build -> vite build
+- preview -> vite preview
+- lint -> eslint .
+- lint:fix -> eslint . --fix
+- format -> prettier --write .
