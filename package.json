@@ -26,5 +26,13 @@
   "dependencies": {
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write ."
   }
 }
