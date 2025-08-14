@@ -1,6 +1,5 @@
 {
   "name": "react-vite-bun-template",
-  "module": "index.ts",
   "type": "module",
   "private": true,
   "devDependencies": {
