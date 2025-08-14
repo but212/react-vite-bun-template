@@ -1,6 +1,6 @@
 # react-vite-bun-template
 
-[docs/project.md](docs/project.md)에 계획 및 과정을 기록해두었습니다.
+[docs/project.md](docs/project.md)와 [docs/retrospect.md](docs/retrospect.md)에 계획 및 과정을 기록해두었습니다.
 
 ## 사용방법
 
