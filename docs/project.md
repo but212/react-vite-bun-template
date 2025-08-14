@@ -14,8 +14,35 @@ Bun + Vite + React + TypeScript 프로젝트의 기본 구성 요소를 포함�
 
 ### 의존성
 
-prod: react, react-dom
-dev: vite, @vitejs/plugin-react-swc, typescript, @types/react, @types/react-dom, vite-tsconfig-paths
+#### 기본 런타임 및 프레임워크
+
+- react
+- react-dom
+- typescript
+
+#### 빌드 도구 및 플러그인
+
+- vite
+- @vitejs/plugin-react-swc
+- vite-tsconfig-paths
+
+#### 스타일링 및 포매팅
+
+- tailwindcss
+- prettier
+- prettier-plugin-tailwindcss
+
+#### 린트 및 코드 품질
+
+- eslint
+- @typescript-eslint/eslint-plugin
+- @typescript-eslint/parser
+- eslint-plugin-react
+- eslint-plugin-react-hooks
+- eslint-plugin-import
+- eslint-config-prettier
+- @types/react
+- @types/react-dom
 
 ### 레포지토리 폴더 구조
 
@@ -26,6 +53,7 @@ dev: vite, @vitejs/plugin-react-swc, typescript, @types/react, @types/react-dom,
 │  └─ main.tsx
 ├─ public/
 │  └─ favicon.svg
+├─ .editorconfig
 ├─ .eslintrc.mjs
 ├─ .gitignore
 ├─ .prettierignore
@@ -33,7 +61,6 @@ dev: vite, @vitejs/plugin-react-swc, typescript, @types/react, @types/react-dom,
 ├─ bunfig.toml
 ├─ index.html
 ├─ package.json
-├─ postcss.config.mjs
 ├─ tailwind.config.mjs
 ├─ tsconfig.json
 ├─ tsconfig.node.json
