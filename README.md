@@ -20,6 +20,25 @@ bun create but212/react-vite-bun-template
 - tailwind-merge
 - clsx
 
+## 유틸 함수
+
+- `cn` (클래스 병합/중복 제거): `src/lib/utils/cn.ts`
+- `getEnv` (환경변수 안전 조회): `src/lib/utils/env.ts`
+- `sleep`, `debounce`, `throttle`, `retry`: `src/lib/utils/async.ts`
+- `clamp`, `pick`, `omit`: `src/lib/utils/object.ts`
+
+자세한 예시는 docs/retrospect.md의 [유틸 함수 요약 표](docs/retrospect.md#유틸-함수-요약-표) 참고.
+
+## 스크립트
+
+- dev -> vite
+- build -> tsc --noEmit && vite build (빌드 전 타입체크)
+- preview -> vite preview
+- lint -> eslint .
+- lint:fix -> eslint . --fix
+- format -> prettier --write .
+- clean -> rimraf dist
+
 ## 라이센스
 
 - 전체: CC0(퍼블릭 도메인)

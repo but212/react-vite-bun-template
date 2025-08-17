@@ -453,6 +453,22 @@ const safeUser = omit(user, ['password']); // { id: 1, name: 'John', email: 'joh
 
 해당 함수를 통해 이 템플릿을 적용한 프로젝트에서 더욱 원활한 개발이 가능합니다.
 
+### 유틸 함수 요약 표
+
+아래 표는 위 유틸 함수들을 간단히 요약한 것입니다.
+
+| 함수       | 파일 경로                   | 목적                           | 시그니처                                                                  | 간단 사용 예시                                    |
+|------------|----------------------------|--------------------------------|---------------------------------------------------------------------------|---------------------------------------------------|
+| `cn`       | `src/lib/utils/cn.ts`      | 클래스 이름 병합/중복 제거     | `cn(...inputs: ClassValue[]): string`                                    | `cn('p-4 text-sm', 'p-2 text-lg') => 'p-2 text-lg'` |
+| `getEnv`   | `src/lib/utils/env.ts`     | 환경변수 안전 조회 (기본값 지원) | `getEnv<K extends keyof ImportMetaEnv>(key: K, fallback = ''): string`   | `getEnv('VITE_API_URL', 'https://api.example.com')` |
+| `sleep`    | `src/lib/utils/async.ts`   | 지연(대기) Promise 반환        | `(ms: number) => Promise<void>`                                           | `await sleep(300)`                                |
+| `debounce` | `src/lib/utils/async.ts`   | 연속 호출 방지(마지막 호출만 실행) | `debounce<T extends (...args:any[])=>void>(fn: T, wait = 300)`           | `const onInput = debounce(v => console.log(v), 500)` |
+| `throttle` | `src/lib/utils/async.ts`   | 일정 간격으로만 실행           | `throttle<T extends (...args:any[])=>void>(fn: T, wait = 300)`           | `const onScroll = throttle(() => {}, 100)`       |
+| `retry`    | `src/lib/utils/async.ts`   | 실패 시 재시도 로직            | `retry<T>(fn: () => Promise<T>, times = 3, delay = 300): Promise<T>`     | `await retry(fetchData, 5, 1000)`                |
+| `clamp`    | `src/lib/utils/object.ts`  | 값 범위 제한                   | `(v: number, min: number, max: number) => number`                        | `clamp(150, 0, 100) => 100`                      |
+| `pick`     | `src/lib/utils/object.ts`  | 객체에서 특정 키만 선택        | `pick<T, K extends keyof T>(obj: T, keys: ReadonlyArray<K>): Pick<T, K>` | `pick(user, ['id', 'name'])`                     |
+| `omit`     | `src/lib/utils/object.ts`  | 객체에서 특정 키 제외          | `omit<T, K extends keyof T>(obj: T, keys: ReadonlyArray<K>): Omit<T, K>` | `omit(user, ['password'])`                       |
+
 ## 느낀점
 
 제가 이 템플릿에서 개발을 하면서 어떤 것이 필요할지 고민하면서 이것저것 고민하기는 했지만 생태계에서 어떻게 라이브러리와 툴이 적용되고 설정이 되는지 몰라서 AI의 도움을 많이 받았습니다. 복기하면서 많이 배워야 할 것 같습니다. 그래도 레퍼런스와 더불어 많이 배운 것 같습니다.

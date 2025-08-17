@@ -31,6 +31,8 @@ Bun + Vite + React + TypeScript 프로젝트의 기본 구성 요소를 포함�
 - tailwindcss
 - prettier
 - prettier-plugin-tailwindcss
+- tailwind-merge
+- clsx
 
 #### 린트 및 코드 품질
 
@@ -50,10 +52,13 @@ Bun + Vite + React + TypeScript 프로젝트의 기본 구성 요소를 포함�
 ├─ src/
 │  ├─ assets/
 │  ├─ components/
+│  ├─ lib/
+│  │  └─ utils/
+│  ├─ styles/
 │  ├─ App.tsx
 │  └─ main.tsx
 ├─ public/
-│  └─ favicon.svg
+│  └─ favicon.png
 ├─ .editorconfig
 ├─ .eslintrc.mjs
 ├─ .gitignore
@@ -72,8 +77,28 @@ Bun + Vite + React + TypeScript 프로젝트의 기본 구성 요소를 포함�
 ### 스크립트
 
 - dev -> vite
-- build -> vite build
+- build -> tsc --noEmit && vite build
 - preview -> vite preview
 - lint -> eslint .
 - lint:fix -> eslint . --fix
 - format -> prettier --write .
+- clean -> rimraf dist
+
+### bun create 전/후 처리
+
+```json
+"bun-create": {
+  "preinstall": [],
+  "postinstall": ["bunx rimraf -rf .git", "bunx rimraf -rf dist"],
+  "start": "bun run dev"
+}
+```
+
+### 유틸 함수
+
+- `cn`: `src/lib/utils/cn.ts` (클래스 병합/중복 제거)
+- `getEnv`: `src/lib/utils/env.ts` (환경변수 안전 조회)
+- `sleep`, `debounce`, `throttle`, `retry`: `src/lib/utils/async.ts`
+- `clamp`, `pick`, `omit`: `src/lib/utils/object.ts`
+
+자세한 사용 예시는 `docs/retrospect.md`의 [유틸 함수 요약 표](./retrospect.md#유틸-함수-요약-표)를 참고하세요.
