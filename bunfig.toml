@@ -12,7 +12,6 @@ peer = true
 [run]
 # Script execution configuration
 bun = true
-shell = "/bin/bash"
 
 [test]
 # Test configuration for React components

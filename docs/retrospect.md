@@ -258,3 +258,21 @@ export default tseslint.config(
   "format": "prettier --write ."
 }
 ```
+
+## rimraf를 활용한 클린과 bun create 전처리, 후처리
+
+강사님의 템플릿을 참고하여 rimraf를 활용한 클린과 bun create 전처리, 후처리를 구현했습니다.
+
+```json
+"bun-create": {
+    "preinstall": [],
+    "postinstall": ["bunx rimraf -rf .git", "bunx rimraf -rf dist"],
+    "start": "bun run dev"
+  },
+
+...
+
+"scripts": {
+  "clean": "rimraf dist"
+}
+```
