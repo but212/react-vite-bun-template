@@ -4,11 +4,11 @@
 
 ## 구조
 
-└─ utils/
-   └─ index.ts
-   └─ cn.ts
-   └─ async.ts
-   └─ object.ts
-   └─ env.ts
-   └─ README.md
+└─ utils/  
+   └─ index.ts  
+   └─ cn.ts  
+   └─ async.ts  
+   └─ object.ts  
+   └─ env.ts  
+   └─ README.md  
 └─ README.md
