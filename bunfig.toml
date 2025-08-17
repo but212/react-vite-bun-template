@@ -1,0 +1,33 @@
+[install]
+# Bun package manager configuration
+registry = "https://registry.npmjs.org"
+cache = true
+optional = true
+dev = true
+peer = true
+
+[install.scopes]
+# Configure scoped packages if needed
+
+[run]
+# Script execution configuration
+bun = true
+shell = "/bin/bash"
+
+[test]
+# Test configuration for React components
+preload = ["./src/setupTests.ts"]
+coverage = true
+
+[build]
+# Build configuration for production
+target = "browser"
+format = "esm"
+minify = true
+sourcemap = true
+
+[dev]
+# Development server configuration
+hot = true
+port = 5173
+

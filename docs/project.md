@@ -46,6 +46,7 @@ Bun + Vite + React + TypeScript 프로젝트의 기본 구성 요소를 포함�
 
 ### 레포지토리 폴더 구조
 
+```text
 ├─ src/
 │  ├─ assets/
 │  ├─ components/
@@ -66,6 +67,7 @@ Bun + Vite + React + TypeScript 프로젝트의 기본 구성 요소를 포함�
 ├─ tsconfig.node.json
 ├─ vite.config.ts
 └─ README.md
+```
 
 ### 스크립트
 
