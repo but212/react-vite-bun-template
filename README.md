@@ -41,5 +41,5 @@ bun create but212/react-vite-bun-template
 
 ## 라이센스
 
-- 전체: CC0(퍼블릭 도메인)
+- 전체: CC0(퍼블릭 도메인) -> `bun create` 후에 `LICENSE`를 제거해주세요
 - src/lib/utils/cn.ts: MIT
