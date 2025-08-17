@@ -1,3 +1,4 @@
+import tailwind from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react-swc';
 import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
@@ -6,6 +7,7 @@ export default defineConfig({
   plugins: [
     tsconfigPaths(), // TypeScript path mapping 지원 (tsconfig.json의 paths 설정 사용)
     react(), // React SWC 플러그인 (빠른 컴파일)
+    tailwind(), // Tailwind CSS 플러그인
   ],
   server: {
     port: 5173, // 개발 서버 포트
