@@ -4,9 +4,11 @@
 
 ## 구조
 
+```text
 └─ index.ts  
 └─ cn.ts  
 └─ async.ts  
 └─ object.ts  
 └─ env.ts  
 └─ README.md
+```

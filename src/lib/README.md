@@ -4,6 +4,7 @@
 
 ## 구조
 
+```text
 └─ utils/  
    └─ index.ts  
    └─ cn.ts  
@@ -12,3 +13,4 @@
    └─ env.ts  
    └─ README.md  
 └─ README.md
+```
