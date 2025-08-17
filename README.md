@@ -17,7 +17,10 @@ bun create but212/react-vite-bun-template
 - ESLint
 - Prettier
 - Bun
+- tailwind-merge
+- clsx
 
 ## 라이센스
 
-CC0(퍼블릭 도메인): 마음껏 사용하시면 됩니다.
+- 전체: CC0(퍼블릭 도메인)
+- src/lib/utils/cn.ts: MIT

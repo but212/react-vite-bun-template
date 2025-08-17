@@ -302,3 +302,157 @@ export default tseslint.config(
   "clean": "rimraf dist"
 }
 ```
+
+## 유틸 함수 추가
+
+AI가 제안한 유틸함수들 추가 및 클래스 이름 중복제거할 수 있는 cn 함수를 서드파티에서 가져왔습니다.
+
+- cn 함수: [src/lib/utils/cn.ts](src/lib/utils/cn.ts), 출처: [cn](https://github.com/SGLara/cn)
+
+```ts
+// cn.ts
+
+export function cn(...inputs: ClassValue[]): string {
+  return twMerge(clsx(...inputs));
+}
+
+// cn 함수 사용 예시
+import { cn } from '@/lib/utils';
+
+// 기본 사용법
+const className = cn('text-red-500', 'bg-blue-100');
+
+// 조건부 클래스
+const buttonClass = cn(
+  'px-4 py-2 rounded',
+  isActive && 'bg-blue-500 text-white',
+  isDisabled && 'opacity-50 cursor-not-allowed'
+);
+
+// 중복 제거
+const mergedClass = cn('p-4 text-sm', 'p-2 text-lg'); // 결과: 'text-lg p-2'
+
+// env
+
+export function getEnv<K extends keyof ImportMetaEnv>(key: K, fallback = ''): string {
+  const v = import.meta.env[key];
+  return typeof v === 'string' ? v : fallback;
+}
+
+// getEnv 함수 사용 예시
+import { getEnv } from '@/lib/utils';
+
+const API_URL = getEnv('VITE_API_URL', 'https://api.example.com');
+const DEBUG_MODE = getEnv('VITE_DEBUG', 'false') === 'true';
+
+// async.ts
+
+export const sleep = (ms: number) => new Promise<void>(res => setTimeout(res, ms));
+
+export function debounce<T extends (...args: any[]) => void>(fn: T, wait = 300) {
+  let t: ReturnType<typeof setTimeout> | null = null;
+  return (...args: Parameters<T>) => {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => fn(...args), wait);
+  };
+}
+
+// debounce 함수 사용 예시
+import { debounce } from '@/lib/utils';
+
+const handleSearch = debounce((query: string) => {
+  console.log('Searching for:', query);
+}, 500);
+
+export function throttle<T extends (...args: any[]) => void>(fn: T, wait = 300) {
+  let last = 0;
+  return (...args: Parameters<T>) => {
+    const now = Date.now();
+    if (now - last >= wait) {
+      last = now;
+      fn(...args);
+    }
+  };
+}
+
+// throttle 함수 사용 예시
+import { throttle } from '@/lib/utils';
+
+const handleScroll = throttle(() => {
+  console.log('Scroll position:', window.scrollY);
+}, 100);
+
+window.addEventListener('scroll', handleScroll);
+
+export async function retry<T>(fn: () => Promise<T>, times = 3, delay = 300): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < times; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      if (i < times - 1) await sleep(delay);
+    }
+  }
+  throw lastErr;
+}
+
+// retry 함수 사용 예시
+import { retry } from '@/lib/utils';
+
+async function fetchData() {
+  const response = await fetch('https://api.example.com/data');
+  if (!response.ok) throw new Error('Failed to fetch data');
+  return response.json();
+}
+
+retry(fetchData, 5, 1000)
+  .then(data => console.log(data))
+  .catch(err => console.error('All retries failed:', err));
+
+// object.ts
+
+export const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
+
+// clamp 함수 사용 예시
+import { clamp } from '@/lib/utils';
+
+const progress = clamp(userInput, 0, 100); // 0-100 사이로 제한
+const opacity = clamp(scrollRatio, 0, 1); // 0-1 사이로 제한
+
+export function pick<T extends object, K extends keyof T>(obj: T, keys: ReadonlyArray<K>): Pick<T, K> {
+  const out = {} as Pick<T, K>;
+  keys.forEach(k => {
+    if (k in obj) out[k] = obj[k];
+  });
+  return out;
+}
+
+// pick 함수 사용 예시
+import { pick } from '@/lib/utils';
+
+const user = { id: 1, name: 'John', email: 'john@example.com', password: 'secret' };
+const publicUser = pick(user, ['id', 'name', 'email']); // { id: 1, name: 'John', email: 'john@example.com' }
+
+export function omit<T extends object, K extends keyof T>(obj: T, keys: ReadonlyArray<K>): Omit<T, K> {
+  const set = new Set<keyof T>(keys as ReadonlyArray<keyof T>);
+  const out = {} as Omit<T, K>;
+  (Object.keys(obj) as Array<keyof T>).forEach(k => {
+    if (!set.has(k)) (out as any)[k] = (obj as any)[k];
+  });
+  return out;
+}
+
+// omit 함수 사용 예시
+import { omit } from '@/lib/utils';
+
+const user = { id: 1, name: 'John', email: 'john@example.com', password: 'secret' };
+const safeUser = omit(user, ['password']); // { id: 1, name: 'John', email: 'john@example.com' }
+
+```
+
+해당 함수를 통해 이 템플릿을 적용한 프로젝트에서 더욱 원활한 개발이 가능합니다.
+
+## 느낀점
+
+제가 이 템플릿에서 개발을 하면서 어떤 것이 필요할지 고민하면서 이것저것 고민하기는 했지만 생태계에서 어떻게 라이브러리와 툴이 적용되고 설정이 되는지 몰라서 AI의 도움을 많이 받았습니다. 복기하면서 많이 배워야 할 것 같습니다. 그래도 레퍼런스와 더불어 많이 배운 것 같습니다.
