@@ -94,7 +94,7 @@ bun init이 자동 생성해주는tsconfig.json이 bun + react + vite + typescri
 
 ## vite.config.ts 고려
 
-vite 설정 파일을 AI가 자동 생성해주긴 했지만
+vite 설정 파일을 AI가 자동 생성해주긴 했지만 이것을 그대로 사용하기에는 뭔가 부실해보였습니다. 한번 확인해봐야 할 것 같습니다.
 
 ```ts
 import { defineConfig } from 'vite';
@@ -107,7 +107,31 @@ export default defineConfig({
 });
 ```
 
-이것을 그대로 사용하기에는 뭔가 부실해보였습니다. 쓰면서 trouble shooting해야 할 것 같습니다.
+### vite.config.ts 고려 결과
+
+AI의 검토 결과 현재의 설정은 잘 구성되어 있지만 사용자가 빠르게 optional 설정을 하게 하기 위하여 주석으로 optional 설정을 추가하는 것이 좋을 것으로 추천하였습니다.
+
+```ts
+import react from '@vitejs/plugin-react-swc';
+import { defineConfig } from 'vite';
+import tsconfigPaths from 'vite-tsconfig-paths';
+
+export default defineConfig({
+  plugins: [
+    tsconfigPaths(), // TypeScript path mapping 지원 (tsconfig.json의 paths 설정 사용)
+    react(), // React SWC 플러그인 (빠른 컴파일)
+  ],
+  server: {
+    port: 5173, // 개발 서버 포트
+    // strictPort: true, // 포트가 사용 중일 때 다른 포트로 변경하지 않음
+    // open: true, // 서버 시작 시 브라우저 자동 열기
+  },
+  // build: { 
+  //   target: 'esnext', // 최신 ES 문법으로 빌드
+  //   sourcemap: true   // 소스맵 생성 (디버깅용)
+  // },
+});
+```
 
 ## 파비콘 디자인
 
@@ -118,7 +142,7 @@ export default defineConfig({
 
 ## .editorconfig
 
-prettier가 있었지만 prettier가 작동되지 않는 환경 혹은 상황에서의 fallback에 가까우며 prettier가 지원하지 않는 파일 형식(.yml, .toml)에 대한 기본 설정을 제공합니다.
+prettier가 있었지만 prettier가 작동되지 않는 환경 혹은 상황에서의 fallback에 가까우며 prettier가 지원하지 않는 파일 형식(.yml, .toml)에 대한 기본 에디터 설정을 제공합니다.
 
 ```toml
 root = true
