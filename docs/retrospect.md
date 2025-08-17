@@ -243,3 +243,18 @@ export default tseslint.config(
 ## 그 외
 
 그 외 파일은 검수하기 보다 AI가 생성해준 내용 그대로를 썼습니다.
+
+## TSC를 통한 타입 체크
+
+타입체크를 vite build에서는 하지 않는다는 것을 발견해서 tsc --noEmit을 추가했습니다.
+
+```json
+"scripts": {
+  "dev": "vite",
+  "build": "tsc --noEmit && vite build",
+  "preview": "vite preview",
+  "lint": "eslint .",
+  "lint:fix": "eslint . --fix",
+  "format": "prettier --write ."
+}
+```
