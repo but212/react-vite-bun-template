@@ -10,6 +10,7 @@
     "allowJs": true,
     "types": ["vite/client"],
     "erasableSyntaxOnly": true,
+    "strictPropertyInitialization": true,
 
     // Bundler mode
     "moduleResolution": "bundler",
