@@ -9,6 +9,7 @@
     "jsxImportSource": "react",
     "allowJs": true,
     "types": ["vite/client"],
+    "erasableSyntaxOnly": true,
 
     // Bundler mode
     "moduleResolution": "bundler",
