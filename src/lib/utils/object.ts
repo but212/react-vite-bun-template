@@ -34,7 +34,7 @@ export function omit<T extends object, K extends keyof T>(obj: T, keys: Readonly
   const out = {} as Omit<T, K>;
   for (const k in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, k) && !keySet.has(k)) {
-      (out as any)[k] = obj[k];
+      (out as Record<string, unknown>)[k] = obj[k];
     }
   }
   return out;

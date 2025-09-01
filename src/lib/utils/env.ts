@@ -1,3 +1,7 @@
+interface ImportMetaEnv {
+  [key: string]: string | undefined;
+}
+
 /**
  * Vite 환경 변수를 가져오는 함수
  * @param key - 환경 변수 키
