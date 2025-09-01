@@ -13,6 +13,6 @@ export function getEnv(key: string, fallback = ''): string {
   if (!/^VITE_[A-Z0-9_]+$/.test(key)) {
     throw new TypeError(`허용되지 않는 환경 변수 키입니다: ${String(key)}`);
   }
-  const v = import.meta.env[key];
+  const v = (import.meta.env as Record<string, unknown>)[key];
   return v != null ? String(v) : fallback;
 }

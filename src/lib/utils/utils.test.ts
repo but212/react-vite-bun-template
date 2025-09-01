@@ -509,19 +509,30 @@ describe('env utility', () => {
 
   test('존재하지 않는 환경 변수에 대해 기본값 반환', () => {
     delete import.meta.env.VITE_NONEXISTENT;
-    expect(getEnv('VITE_NONEXISTENT' as keyof ImportMetaEnv, 'default')).toBe('default');
+    expect(getEnv('VITE_NONEXISTENT', 'default')).toBe('default');
   });
 
   test('기본값이 없으면 빈 문자열 반환', () => {
     delete import.meta.env.VITE_NONEXISTENT;
-    expect(getEnv('VITE_NONEXISTENT' as keyof ImportMetaEnv)).toBe('');
+    expect(getEnv('VITE_NONEXISTENT')).toBe('');
   });
 
   test('문자열이 아닌 값에 대해 기본값 반환', () => {
     // getEnv 함수는 실제로 숫자를 문자열로 변환하므로 테스트 수정
     (import.meta.env as any).VITE_NUMBER = 123;
     // 숫자가 문자열로 변환되어 반환되는 것이 정상 동작
-    expect(getEnv('VITE_NUMBER' as keyof ImportMetaEnv)).toBe('123');
+    expect(getEnv('VITE_NUMBER')).toBe('123');
+  });
+
+  test('허용되지 않는 키 패턴이면 TypeError', () => {
+    // VITE_ 접두사가 없거나 형식이 잘못된 경우
+    expect(() => getEnv('DEV')).toThrow(TypeError);
+    expect(() => getEnv('API_KEY')).toThrow(TypeError);
+    expect(() => getEnv('VITE-lower')).toThrow(TypeError);
+  });
+
+  test('문자열이 아닌 키는 TypeError', () => {
+    expect(() => getEnv(123)).toThrow(TypeError);
   });
 });
 
@@ -565,7 +576,7 @@ describe('object utilities', () => {
     });
 
     test('존재하지 않는 키는 무시', () => {
-      const result = pick(testObj, ['name', 'nonexistent' as keyof typeof testObj]);
+      const result = pick(testObj, ['name', 'nonexistent']);
       expect(result).toEqual({ name: 'John' });
     });
 
@@ -610,7 +621,7 @@ describe('object utilities', () => {
     });
 
     test('존재하지 않는 키는 무시', () => {
-      const result = omit(testObj, ['nonexistent' as keyof typeof testObj]);
+      const result = omit(testObj, ['nonexistent']);
       expect(result).toEqual(testObj);
     });
 
