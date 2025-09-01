@@ -10,6 +10,8 @@
     "isolatedModules": true,
     "moduleDetection": "force",
     "noEmit": true,
+    "erasableSyntaxOnly": true,
+    "strictPropertyInitialization": true,
     "types": ["bun-types"]
   },
   "include": ["vite.config.ts", "tailwind.config.mjs", ".eslintrc.mjs"]
