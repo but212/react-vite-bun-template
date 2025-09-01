@@ -27,6 +27,10 @@ bun create but212/react-vite-bun-template
 - `sleep`, `debounce`, `throttle`, `retry`: `src/lib/utils/async.ts`
 - `clamp`, `pick`, `omit`: `src/lib/utils/object.ts`
 
+### 비트연산 유틸리티
+
+- `BitUtils`: `src/lib/utils/bit-utils.ts`
+
 자세한 예시는 docs/retrospect.md의 [유틸 함수 요약 표](docs/retrospect.md#유틸-함수-요약-표) 참고.
 
 ## 스크립트
