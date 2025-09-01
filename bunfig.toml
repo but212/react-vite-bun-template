@@ -15,7 +15,7 @@ bun = true
 
 [test]
 # Test configuration for React components
-preload = ["./src/setupTests.ts"]
+preload = ["./src/test/setup.ts"]
 coverage = true
 
 [build]
@@ -29,4 +29,3 @@ sourcemap = true
 # Development server configuration
 hot = true
 port = 5173
-
