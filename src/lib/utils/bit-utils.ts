@@ -11,6 +11,14 @@ export type BitPosition =
   | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31;
 
 /**
+ * 1~31까지의 회전 위치를 나타내는 타입입니다.
+ * @remarks
+ * 회전 연산에서 0은 의미가 없으므로 제외하고, 1~31만 허용합니다.
+ * 0으로 회전하는 것은 원본과 동일한 결과를 반환하므로 불필요합니다.
+ */
+export type RotationPosition = Exclude<BitPosition, 0>;
+
+/**
  * @class BitUtils
  * @description 32비트 정수 전용 비트 연산 유틸리티 클래스
  * @remarks
@@ -29,11 +37,22 @@ export type BitPosition =
  *
  * // 회전 연산
  * const rotated = BitUtils.rotateLeft(1, 2); // 4 (00...001 → 00...100)
+ *
+ * // 비트 추출 및 삽입
+ * const extracted = BitUtils.extractBits(0b11110000, 4, 4); // 15 (1111₂)
+ * const inserted = BitUtils.insertBits(0, 0b1111, 4); // 240 (11110000₂)
  * ```
  */
 class BitUtils {
   private static readonly MAX_32BIT = 0x7fffffff;
   private static readonly MIN_32BIT = -0x80000000;
+
+  // 성능 최적화를 위한 캐시
+  private static readonly POWER_OF_TWO_CACHE = new Map<number, boolean>();
+  private static readonly POPCOUNT_CACHE = new Map<number, number>();
+
+  /** 캐시 크기 제한 (메모리 사용량 제어) */
+  private static readonly MAX_CACHE_SIZE = 1000;
 
   /**
    * 현재 환경에서 입력값 검증을 수행해야 하는지 판단합니다.
@@ -83,6 +102,7 @@ class BitUtils {
    * @remarks
    * - 0 또는 음수는 항상 `false`를 반환합니다.
    * - 2의 거듭제곱이란, 정확히 하나의 비트만 1로 설정된 양의 정수를 의미합니다.
+   * - 성능 최적화를 위해 자주 사용되는 값들을 캐싱합니다.
    *
    * @example
    * ```typescript
@@ -96,11 +116,22 @@ class BitUtils {
    */
   static isPowerOfTwo(n: number): boolean {
     if (this.shouldValidate()) {
-      if (!Number.isInteger(n)) {
-        throw new TypeError('isPowerOfTwo: Input must be an integer');
-      }
+      n = this.validate32Bit(n, 'isPowerOfTwo');
     }
-    return Number.isInteger(n) && n > 0 && (n & (n - 1)) === 0;
+
+    // 캐시 확인
+    if (this.POWER_OF_TWO_CACHE.has(n)) {
+      return this.POWER_OF_TWO_CACHE.get(n)!;
+    }
+
+    const result = n > 0 && (n & (n - 1)) === 0;
+
+    // 캐시 크기 제한
+    if (this.POWER_OF_TWO_CACHE.size < this.MAX_CACHE_SIZE) {
+      this.POWER_OF_TWO_CACHE.set(n, result);
+    }
+
+    return result;
   }
 
   // ===== 비트 위치 조작 =====
@@ -205,14 +236,14 @@ class BitUtils {
    * 주어진 32비트 정수 `x`를 왼쪽으로 `positions`만큼 순환 시프트(rotate, 롤)합니다.
    *
    * @param x      왼쪽 회전할 32비트 정수 값
-   * @param positions 왼쪽으로 회전할 비트 수 (0~31, 32로 나머지 연산 적용)
+   * @param positions 왼쪽으로 회전할 비트 수 (1~31)
    * @returns      왼쪽으로 회전된 32비트 부호 없는 정수 값
    *
    * @throws {TypeError} x가 정수가 아니거나 32비트 범위를 벗어난 경우
-   * @throws {RangeError} positions가 정수가 아닌 경우
+   * @throws {RangeError} positions가 1~31 범위를 벗어난 경우
    *
    * @remarks
-   * - `positions` 값은 32로 나머지 연산이 적용되어 0~31의 값으로 변환됩니다.
+   * - 0으로 회전하는 것은 의미가 없으므로 1~31만 허용합니다.
    * - JavaScript의 비트 연산 특성을 이용하여 부호 없는 32비트 정수로 결과가 반환됩니다.
    *
    * @example
@@ -223,7 +254,7 @@ class BitUtils {
    * BitUtils.rotateLeft(0xffffffff, 16);    // 0xffffffff, 모든 비트가 1
    * ```
    */
-  static rotateLeft(x: number, positions: BitPosition): number {
+  static rotateLeft(x: number, positions: RotationPosition): number {
     if (this.shouldValidate()) {
       x = this.validate32Bit(x, 'rotateLeft');
     }
@@ -234,14 +265,14 @@ class BitUtils {
    * 주어진 32비트 정수 `x`를 오른쪽으로 `positions`만큼 순환 시프트(rotate, 롤)합니다.
    *
    * @param x 오른쪽 회전할 32비트 정수 값
-   * @param positions 오른쪽으로 회전할 비트 수 (0~31, 32로 나머지 연산 적용)
+   * @param positions 오른쪽으로 회전할 비트 수 (1~31)
    * @returns 오른쪽으로 회전된 32비트 부호 없는 정수 값
    *
    * @throws {TypeError} x가 정수가 아니거나 32비트 범위를 벗어난 경우
-   * @throws {RangeError} positions가 정수가 아닌 경우
+   * @throws {RangeError} positions가 1~31 범위를 벗어난 경우
    *
    * @remarks
-   * - `positions` 값은 32로 나머지 연산이 적용되어 0~31의 값으로 변환됩니다.
+   * - 0으로 회전하는 것은 의미가 없으므로 1~31만 허용합니다.
    * - JavaScript의 비트 연산 특성을 이용하여 부호 없는 32비트 정수로 결과가 반환됩니다.
    *
    * @example
@@ -252,7 +283,7 @@ class BitUtils {
    * BitUtils.rotateRight(0xffffffff, 16);   // 0xffffffff, 모든 비트가 1
    * ```
    */
-  static rotateRight(x: number, positions: BitPosition): number {
+  static rotateRight(x: number, positions: RotationPosition): number {
     if (this.shouldValidate()) {
       x = this.validate32Bit(x, 'rotateRight');
     }
@@ -274,6 +305,7 @@ class BitUtils {
    * - Brian Kernighan 알고리즘을 사용하여 효율적으로 계산합니다.
    * - 입력값이 0이면 0을 반환합니다.
    * - 입력값이 음수일 경우 32비트 2의 보수 표현 기준으로 팝카운트를 계산합니다.
+   * - 성능 최적화를 위해 자주 사용되는 값들을 캐싱합니다.
    *
    * @example
    * ```typescript
@@ -288,12 +320,26 @@ class BitUtils {
     if (this.shouldValidate()) {
       x = this.validate32Bit(x, 'popCount');
     }
-    let count = 0;
-    x = x >>> 0;
-    while (x) {
-      count++;
-      x &= x - 1;
+
+    const unsignedX = x >>> 0;
+
+    // 캐시 확인
+    if (this.POPCOUNT_CACHE.has(unsignedX)) {
+      return this.POPCOUNT_CACHE.get(unsignedX)!;
     }
+
+    let count = 0;
+    let temp = unsignedX;
+    while (temp) {
+      count++;
+      temp &= temp - 1;
+    }
+
+    // 캐시 크기 제한
+    if (this.POPCOUNT_CACHE.size < this.MAX_CACHE_SIZE) {
+      this.POPCOUNT_CACHE.set(unsignedX, count);
+    }
+
     return count;
   }
 
@@ -352,6 +398,125 @@ class BitUtils {
     }
     if (x === 0) return 32;
     return 31 - Math.clz32(x & -x);
+  }
+
+  // ===== 새로운 비트 조작 메서드 =====
+
+  /**
+   * 주어진 32비트 정수에서 지정된 위치와 길이의 비트들을 추출합니다.
+   *
+   * @param x 비트를 추출할 32비트 정수 값
+   * @param start 추출을 시작할 비트 위치 (0=최하위 비트)
+   * @param length 추출할 비트의 개수 (1~32)
+   * @returns 추출된 비트들로 구성된 정수 값
+   *
+   * @throws {TypeError} x가 정수가 아니거나 32비트 범위를 벗어난 경우
+   * @throws {RangeError} start나 length가 유효하지 않은 경우
+   *
+   * @remarks
+   * - start + length는 32를 초과할 수 없습니다.
+   * - 추출된 비트들은 최하위 비트부터 배치됩니다.
+   *
+   * @example
+   * ```typescript
+   * BitUtils.extractBits(0b11110000, 4, 4); // 15 (0b1111)
+   * BitUtils.extractBits(0b10101010, 1, 3); // 5 (0b101)
+   * BitUtils.extractBits(0xff00ff00, 8, 8); // 255 (0b11111111)
+   * ```
+   */
+  static extractBits(x: number, start: BitPosition, length: number): number {
+    if (this.shouldValidate()) {
+      x = this.validate32Bit(x, 'extractBits');
+      if (!Number.isInteger(length) || length < 1 || length > 32) {
+        throw new RangeError('extractBits: length must be between 1 and 32');
+      }
+      if (start + length > 32) {
+        throw new RangeError('extractBits: start + length must not exceed 32');
+      }
+    }
+
+    const mask = (1 << length) - 1;
+    return (x >>> start) & mask;
+  }
+
+  /**
+   * 주어진 32비트 정수의 지정된 위치에 비트들을 삽입합니다.
+   *
+   * @param x 비트를 삽입할 대상 32비트 정수 값
+   * @param bits 삽입할 비트 값
+   * @param start 삽입을 시작할 비트 위치 (0=최하위 비트)
+   * @param length 삽입할 비트의 개수 (기본값: bits의 유효 비트 수)
+   * @returns 비트가 삽입된 새로운 32비트 정수 값
+   *
+   * @throws {TypeError} x나 bits가 정수가 아니거나 32비트 범위를 벗어난 경우
+   * @throws {RangeError} start나 length가 유효하지 않은 경우
+   *
+   * @remarks
+   * - 기존 위치의 비트들은 삽입되는 비트들로 덮어씌워집니다.
+   * - length를 지정하지 않으면 bits의 유효 비트 수를 자동 계산합니다.
+   *
+   * @example
+   * ```typescript
+   * BitUtils.insertBits(0, 0b1111, 4, 4);     // 240 (0b11110000)
+   * BitUtils.insertBits(0b11110000, 0b101, 1, 3); // 234 (0b11101010)
+   * BitUtils.insertBits(0xff00ff00, 0b1010, 4, 4); // 0xff00ffa0
+   * ```
+   */
+  static insertBits(x: number, bits: number, start: BitPosition, length?: number): number {
+    if (this.shouldValidate()) {
+      x = this.validate32Bit(x, 'insertBits');
+      bits = this.validate32Bit(bits, 'insertBits');
+    }
+
+    // length가 지정되지 않으면 bits의 유효 비트 수 계산
+    if (length === undefined) {
+      length = bits === 0 ? 1 : 32 - Math.clz32(bits);
+    }
+
+    if (this.shouldValidate()) {
+      if (!Number.isInteger(length) || length < 1 || length > 32) {
+        throw new RangeError('insertBits: length must be between 1 and 32');
+      }
+      if (start + length > 32) {
+        throw new RangeError('insertBits: start + length must not exceed 32');
+      }
+    }
+
+    const mask = ((1 << length) - 1) << start;
+    const maskedBits = (bits & ((1 << length) - 1)) << start;
+    return ((x & ~mask) | maskedBits) >>> 0;
+  }
+
+  /**
+   * 주어진 32비트 정수의 비트 순서를 뒤집습니다.
+   *
+   * @param x 비트 순서를 뒤집을 32비트 정수 값
+   * @returns 비트 순서가 뒤집힌 32비트 정수 값
+   *
+   * @throws {TypeError} x가 정수가 아니거나 32비트 범위를 벗어난 경우
+   *
+   * @remarks
+   * - 최하위 비트가 최상위 비트가 되고, 최상위 비트가 최하위 비트가 됩니다.
+   * - 예: 0b00000001 → 0b10000000_00000000_00000000_00000000
+   *
+   * @example
+   * ```typescript
+   * BitUtils.reverseBits(0b00000001); // 0x80000000
+   * BitUtils.reverseBits(0b11110000); // 0x0f000000
+   * BitUtils.reverseBits(0x12345678); // 0x1e6a2c48
+   * ```
+   */
+  static reverseBits(x: number): number {
+    if (this.shouldValidate()) {
+      x = this.validate32Bit(x, 'reverseBits');
+    }
+
+    let result = 0;
+    for (let i = 0; i < 32; i++) {
+      result = (result << 1) | (x & 1);
+      x >>>= 1;
+    }
+    return result >>> 0;
   }
 
   // ===== 마스크 상수 =====
