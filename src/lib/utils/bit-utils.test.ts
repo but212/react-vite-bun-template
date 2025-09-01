@@ -631,8 +631,6 @@ describe('BitUtils', () => {
     });
 
     test('빈번한 정리 방지', () => {
-      const startTime = Date.now();
-
       // 짧은 시간 내에 여러 번 캐시 오버플로우 유발
       for (let batch = 0; batch < 3; batch++) {
         const values = Array.from({ length: 500 }, (_, i) => i + batch * 1000);
