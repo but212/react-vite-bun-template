@@ -3,6 +3,9 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 // async.ts 테스트
 import { debounce, retry, sleep, throttle } from './async';
 
+// cache-strategy.ts 테스트
+import { AdaptiveLRUCache, WeakMapCache } from './cache-strategy';
+
 // cn.ts 테스트
 import { cn } from './cn';
 
@@ -143,6 +146,315 @@ describe('async utilities', () => {
 
       await expect(retry(fn, undefined, 0)).rejects.toThrow('always fail');
       expect(fn).toHaveBeenCalledTimes(3);
+    });
+  });
+});
+
+describe('cache-strategy utilities', () => {
+  describe('AdaptiveLRUCache', () => {
+    test('기본 캐시 동작 - set/get', () => {
+      const cache = new AdaptiveLRUCache<string, number>();
+
+      cache.set('key1', 100);
+      cache.set('key2', 200);
+
+      expect(cache.get('key1')).toBe(100);
+      expect(cache.get('key2')).toBe(200);
+      expect(cache.size()).toBe(2);
+    });
+
+    test('캐시 미스', () => {
+      const cache = new AdaptiveLRUCache<string, number>();
+      expect(cache.get('nonexistent')).toBeUndefined();
+    });
+
+    test('LRU 정책 - 최근 사용된 항목 유지', () => {
+      const cache = new AdaptiveLRUCache<string, number>(3);
+
+      cache.set('key1', 1);
+      cache.set('key2', 2);
+      cache.set('key3', 3);
+
+      // key1에 접근하여 최근 사용으로 만듦
+      cache.get('key1');
+
+      // 새 항목 추가로 캐시 오버플로우 유발
+      cache.set('key4', 4);
+
+      // key1은 최근 사용되어 유지되어야 함
+      expect(cache.get('key1')).toBe(1);
+      expect(cache.get('key4')).toBe(4);
+    });
+
+    test('기존 키 업데이트', () => {
+      const cache = new AdaptiveLRUCache<string, number>();
+
+      cache.set('key', 100);
+      expect(cache.get('key')).toBe(100);
+
+      cache.set('key', 200); // 같은 키로 업데이트
+      expect(cache.get('key')).toBe(200);
+      expect(cache.size()).toBe(1); // 크기는 그대로
+    });
+
+    test('캐시 통계 수집', () => {
+      const cache = new AdaptiveLRUCache<string, number>();
+
+      // 초기 상태
+      let stats = cache.getStats();
+      expect(stats.hits).toBe(0);
+      expect(stats.misses).toBe(0);
+      expect(stats.hitRate).toBe(0);
+      expect(stats.cacheSize).toBe(0);
+
+      // 캐시 미스
+      cache.get('key1');
+      stats = cache.getStats();
+      expect(stats.misses).toBe(1);
+      expect(stats.hitRate).toBe(0);
+
+      // 캐시 히트
+      cache.set('key1', 100);
+      cache.get('key1');
+      stats = cache.getStats();
+      expect(stats.hits).toBe(1);
+      expect(stats.misses).toBe(1);
+      expect(stats.hitRate).toBe(0.5);
+      expect(stats.cacheSize).toBe(1);
+    });
+
+    test('적응형 캐시 제거 - 높은 히트율', () => {
+      const cache = new AdaptiveLRUCache<string, number>(5);
+
+      // 캐시 채우기
+      for (let i = 1; i <= 5; i++) {
+        cache.set(`key${i}`, i);
+      }
+
+      // 높은 히트율 생성 (반복 접근)
+      for (let round = 0; round < 10; round++) {
+        for (let i = 1; i <= 5; i++) {
+          cache.get(`key${i}`);
+        }
+      }
+
+      const statsBeforeEviction = cache.getStats();
+      expect(statsBeforeEviction.hitRate).toBeGreaterThan(0.8);
+
+      // 새 항목들 추가하여 제거 유발
+      for (let i = 6; i <= 10; i++) {
+        cache.set(`key${i}`, i);
+      }
+
+      const statsAfterEviction = cache.getStats();
+      expect(statsAfterEviction.evictions).toBeGreaterThan(0);
+    });
+
+    test('적응형 캐시 제거 - 낮은 히트율', () => {
+      const cache = new AdaptiveLRUCache<string, number>(5);
+
+      // 낮은 히트율 시나리오: 캐시 크기보다 많은 새로운 키만 반복 접근
+      for (let round = 0; round < 5; round++) {
+        for (let i = 1; i <= 10; i++) {
+          cache.get(`key${i}`); // 반복적으로 캐시에 없는 키 접근 (계속 미스)
+        }
+      }
+
+      // 이후 일부만 set하여 캐시 오버플로우 유도
+      for (let i = 1; i <= 10; i++) {
+        cache.set(`key${i}`, i);
+      }
+
+      const stats = cache.getStats();
+      expect(stats.hitRate).toBeLessThan(0.5);
+      expect(stats.evictions).toBeGreaterThan(0);
+    });
+
+    test('캐시 초기화', () => {
+      const cache = new AdaptiveLRUCache<string, number>();
+
+      cache.set('key1', 1);
+      cache.set('key2', 2);
+      cache.get('key1'); // 히트 생성
+      cache.get('nonexistent'); // 미스 생성
+
+      expect(cache.size()).toBe(2);
+      expect(cache.getStats().hits).toBe(1);
+
+      cache.clear();
+
+      expect(cache.size()).toBe(0);
+      expect(cache.get('key1')).toBeUndefined();
+
+      const stats = cache.getStats();
+      expect(stats.hits).toBe(0);
+      expect(stats.misses).toBe(1);
+      expect(stats.evictions).toBe(0);
+      expect(stats.cacheSize).toBe(0);
+    });
+
+    test('다양한 타입 지원', () => {
+      // 문자열 키, 객체 값
+      const cache1 = new AdaptiveLRUCache<string, { name: string; age: number }>();
+      const user = { name: 'John', age: 30 };
+      cache1.set('user1', user);
+      expect(cache1.get('user1')).toEqual(user);
+
+      // 숫자 키, 문자열 값
+      const cache2 = new AdaptiveLRUCache<number, string>();
+      cache2.set(1, 'first');
+      cache2.set(2, 'second');
+      expect(cache2.get(1)).toBe('first');
+      expect(cache2.get(2)).toBe('second');
+    });
+
+    test('대용량 데이터 처리', () => {
+      const cache = new AdaptiveLRUCache<number, string>(100);
+
+      // 100개 항목 추가
+      for (let i = 0; i < 100; i++) {
+        cache.set(i, `value${i}`);
+      }
+
+      expect(cache.size()).toBe(100);
+
+      // 추가 항목으로 제거 유발
+      for (let i = 100; i < 150; i++) {
+        cache.set(i, `value${i}`);
+      }
+
+      expect(cache.size()).toBeLessThanOrEqual(100);
+      expect(cache.getStats().evictions).toBeGreaterThan(0);
+    });
+  });
+
+  describe('WeakMapCache', () => {
+    test('기본 캐시 동작 - set/get', () => {
+      const cache = new WeakMapCache<number>();
+      const key1 = {};
+      const key2 = {};
+
+      cache.set(key1, 100);
+      cache.set(key2, 200);
+
+      expect(cache.get(key1)).toBe(100);
+      expect(cache.get(key2)).toBe(200);
+    });
+
+    test('캐시 미스', () => {
+      const cache = new WeakMapCache<number>();
+      const key = {};
+      expect(cache.get(key)).toBeUndefined();
+    });
+
+    test('객체 키만 허용', () => {
+      const cache = new WeakMapCache<string>();
+      const objKey = {};
+      const funcKey = () => {};
+      const arrayKey: number[] = [];
+
+      cache.set(objKey, 'object');
+      cache.set(funcKey, 'function');
+      cache.set(arrayKey, 'array');
+
+      expect(cache.get(objKey)).toBe('object');
+      expect(cache.get(funcKey)).toBe('function');
+      expect(cache.get(arrayKey)).toBe('array');
+    });
+
+    test('캐시 통계 수집', () => {
+      const cache = new WeakMapCache<number>();
+      const key1 = {};
+      const key2 = {};
+
+      // 초기 상태
+      let stats = cache.getStats();
+      expect(stats.hits).toBe(0);
+      expect(stats.misses).toBe(0);
+      expect(stats.hitRate).toBe(0);
+      expect(stats.cacheSize).toBe(-1); // WeakMap은 크기를 알 수 없음
+
+      // 캐시 미스
+      cache.get(key1);
+      stats = cache.getStats();
+      expect(stats.misses).toBe(1);
+      expect(stats.hitRate).toBe(0);
+
+      // 캐시 히트
+      cache.set(key1, 100);
+      cache.get(key1);
+      stats = cache.getStats();
+      expect(stats.hits).toBe(1);
+      expect(stats.misses).toBe(1);
+      expect(stats.hitRate).toBe(0.5);
+    });
+
+    test('size() 메서드는 -1 반환', () => {
+      const cache = new WeakMapCache<number>();
+      expect(cache.size()).toBe(-1);
+
+      const key = {};
+      cache.set(key, 100);
+      expect(cache.size()).toBe(-1); // 여전히 -1
+    });
+
+    test('clear() 메서드 - 통계만 초기화', () => {
+      const cache = new WeakMapCache<number>();
+      const key = {};
+
+      cache.set(key, 100);
+      cache.get(key); // 히트 생성
+      cache.get({}); // 미스 생성
+
+      expect(cache.getStats().hits).toBe(1);
+      expect(cache.getStats().misses).toBe(1);
+
+      cache.clear();
+
+      // 통계는 초기화됨
+      const stats = cache.getStats();
+      expect(stats.hits).toBe(0);
+      expect(stats.misses).toBe(0);
+      expect(stats.evictions).toBe(0);
+
+      // 하지만 실제 캐시 데이터는 여전히 접근 가능 (WeakMap 특성)
+      expect(cache.get(key)).toBe(100);
+    });
+
+    test('다양한 객체 타입 키 지원', () => {
+      const cache = new WeakMapCache<string>();
+
+      const plainObj = {};
+      const dateObj = new Date();
+      const regexObj = /test/;
+      const errorObj = new Error('test');
+
+      cache.set(plainObj, 'plain');
+      cache.set(dateObj, 'date');
+      cache.set(regexObj, 'regex');
+      cache.set(errorObj, 'error');
+
+      expect(cache.get(plainObj)).toBe('plain');
+      expect(cache.get(dateObj)).toBe('date');
+      expect(cache.get(regexObj)).toBe('regex');
+      expect(cache.get(errorObj)).toBe('error');
+    });
+
+    test('메모리 효율성 - 가비지 컬렉션 친화적', () => {
+      const cache = new WeakMapCache<number>();
+
+      // 키 객체가 스코프를 벗어나면 자동으로 가비지 컬렉션됨
+      const createAndCacheData = () => {
+        const tempKey = { id: 'temp' };
+        cache.set(tempKey, 999);
+        return tempKey;
+      };
+
+      const key = createAndCacheData();
+      expect(cache.get(key)).toBe(999);
+
+      // 실제 가비지 컬렉션 테스트는 어렵지만,
+      // WeakMap의 특성상 키가 참조되지 않으면 자동 제거됨
     });
   });
 });
