@@ -1,2 +1,8 @@
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+/* Project globals (variables, a11y) */
 @import './common/index.css';
-@import 'tailwindcss';

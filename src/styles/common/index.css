@@ -1,3 +1,3 @@
-@import "./reset.css";
-@import "./variables.css";
-@import "./a11y.css";
+@import './variables.css' layer(base);
+@import './a11y.css' layer(components);
+@import './animation.css' layer(utilities);
