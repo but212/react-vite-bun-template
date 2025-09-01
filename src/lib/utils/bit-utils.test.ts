@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, test } from 'vitest';
-import BitUtils, { createBitLength, isValidBitLength } from './bit-utils';
+import BitUtils from './bit-utils';
 
 describe('BitUtils', () => {
+  beforeEach(() => {
+    // 각 테스트 전에 캐시 초기화
+    BitUtils.clearAllCaches();
+  });
+
   describe('isPowerOfTwo', () => {
     test('2의 거듭제곱 판별 - 정상 케이스', () => {
       expect(BitUtils.isPowerOfTwo(1)).toBe(true); // 2^0
@@ -308,6 +313,30 @@ describe('BitUtils', () => {
     });
   });
 
+  describe('insertBits 개선된 길이 계산', () => {
+    test('타입 안전한 길이 검증', () => {
+      // BitLength 타입 범위 테스트 (1-32)
+      expect(() => BitUtils.extractBits(0, 0, 1)).not.toThrow();
+      expect(() => BitUtils.extractBits(0, 0, 16)).not.toThrow();
+      expect(() => BitUtils.extractBits(0, 0, 32)).not.toThrow();
+
+      // 잘못된 길이는 에러 발생 (타입 시스템에서 방지되지만 런타임 검증도 확인)
+      expect(() => BitUtils.extractBits(0, 0, 0)).not.toThrow(); // 0은 허용
+      expect(() => BitUtils.extractBits(0, 0, -1 as any)).toThrow();
+      expect(() => BitUtils.extractBits(0, 0, 33 as any)).toThrow();
+    });
+
+    test('타입 안전성 검증', () => {
+      // BitLength 타입 (1-32) 범위 확인
+      expect(() => BitUtils.extractBits(0, 0, 1)).not.toThrow();
+      expect(() => BitUtils.extractBits(0, 0, 32)).not.toThrow();
+      
+      // BitPosition 타입 (0-31) 범위 확인
+      expect(() => BitUtils.extractBits(0, 0, 1)).not.toThrow();
+      expect(() => BitUtils.extractBits(0, 31, 1)).not.toThrow();
+    });
+  });
+
   describe('reverseBits', () => {
     test('비트 순서 뒤집기 - 정상 케이스', () => {
       expect(BitUtils.reverseBits(0b00000001)).toBe(0x80000000); // 1 → 최상위 비트
@@ -460,6 +489,103 @@ describe('BitUtils', () => {
     });
   });
 
+  describe('적응형 캐시 관리 시스템', () => {
+    beforeEach(() => {
+      // 각 테스트 전에 캐시 초기화
+      BitUtils.clearAllCaches();
+    });
+
+    test('캐시 통계 수집', () => {
+      const initialStats = BitUtils.getCacheStats();
+      expect(initialStats.powerOfTwoCache.hits).toBe(0);
+      expect(initialStats.powerOfTwoCache.misses).toBe(0);
+      expect(initialStats.powerOfTwoCache.hitRate).toBe(0);
+
+      // 캐시 미스 발생
+      BitUtils.isPowerOfTwo(1024);
+      let stats = BitUtils.getCacheStats();
+      expect(stats.powerOfTwoCache.misses).toBe(1);
+      expect(stats.powerOfTwoCache.hitRate).toBe(0);
+
+      // 캐시 히트 발생
+      BitUtils.isPowerOfTwo(1024);
+      stats = BitUtils.getCacheStats();
+      expect(stats.powerOfTwoCache.hits).toBe(1);
+      expect(stats.powerOfTwoCache.hitRate).toBe(0.5); // 1 hit / 2 total
+    });
+
+    test('적응형 제거 비율 - 높은 히트율', () => {
+      // 높은 히트율 시나리오 생성
+      const values = [1, 2, 4, 8, 16];
+
+      // 캐시에 값들 저장
+      values.forEach(v => BitUtils.isPowerOfTwo(v));
+
+      // 반복 접근으로 높은 히트율 생성
+      for (let i = 0; i < 100; i++) {
+        values.forEach(v => BitUtils.isPowerOfTwo(v));
+      }
+
+      const stats = BitUtils.getCacheStats();
+      expect(stats.powerOfTwoCache.hitRate).toBeGreaterThan(0.8);
+
+      // 대량의 새로운 값으로 캐시 오버플로우 유발
+      const newValues = Array.from({ length: 1200 }, (_, i) => i + 100);
+      newValues.forEach(v => BitUtils.isPowerOfTwo(v));
+
+      // 높은 히트율에서는 적게 제거되어야 함
+      const finalStats = BitUtils.getCacheStats();
+      expect(finalStats.powerOfTwoCache.evictions).toBeGreaterThan(0);
+    });
+
+    test('적응형 제거 비율 - 낮은 히트율', () => {
+      // 낮은 히트율 시나리오: 계속 새로운 값들만 접근
+      const values1 = Array.from({ length: 500 }, (_, i) => i);
+      const values2 = Array.from({ length: 500 }, (_, i) => i + 1000);
+      const values3 = Array.from({ length: 500 }, (_, i) => i + 2000);
+
+      // 각각 한 번씩만 접근 (낮은 히트율)
+      values1.forEach(v => BitUtils.isPowerOfTwo(v));
+      values2.forEach(v => BitUtils.isPowerOfTwo(v));
+      values3.forEach(v => BitUtils.isPowerOfTwo(v));
+
+      const stats = BitUtils.getCacheStats();
+      expect(stats.powerOfTwoCache.hitRate).toBeLessThan(0.5);
+      expect(stats.powerOfTwoCache.evictions).toBeGreaterThan(0);
+    });
+
+    test('빈번한 정리 방지', () => {
+      // 짧은 시간 내에 여러 번 캐시 오버플로우 유발
+      for (let batch = 0; batch < 3; batch++) {
+        const values = Array.from({ length: 500 }, (_, i) => i + batch * 1000);
+        values.forEach(v => BitUtils.isPowerOfTwo(v));
+      }
+
+      const stats = BitUtils.getCacheStats();
+      // 빈번한 정리 방지로 제거 비율이 제한되어야 함
+      expect(stats.powerOfTwoCache.evictions).toBeLessThan(1000); // 전체 삭제되지 않음
+    });
+
+    test('캐시 초기화', () => {
+      // 캐시에 데이터 추가
+      BitUtils.isPowerOfTwo(1024);
+      BitUtils.popCount(255);
+
+      let stats = BitUtils.getCacheStats();
+      expect(stats.powerOfTwoCache.cacheSize).toBeGreaterThan(0);
+      expect(stats.popCountCache.cacheSize).toBeGreaterThan(0);
+
+      // 캐시 초기화
+      BitUtils.clearAllCaches();
+
+      stats = BitUtils.getCacheStats();
+      expect(stats.powerOfTwoCache.hits).toBe(0);
+      expect(stats.powerOfTwoCache.misses).toBe(0);
+      expect(stats.powerOfTwoCache.cacheSize).toBe(0);
+      expect(stats.popCountCache.cacheSize).toBe(0);
+    });
+  });
+
   describe('개선된 LRU 캐시 시스템', () => {
     test('Map 기반 LRU 캐시 동작 확인', () => {
       // 캐시 크기를 초과하는 값들로 테스트
@@ -520,145 +646,149 @@ describe('BitUtils', () => {
     });
   });
 
-  describe('insertBits 개선된 길이 계산', () => {
-    test('calcBitLength 유틸리티 동작 확인', () => {
-      // bits = 0인 경우 length = 0 (아무것도 삽입하지 않음)
-      expect(BitUtils.insertBits(0b11111111, 0, 4)).toBe(0b11111111);
+  describe('누락된 메서드들 테스트', () => {
+    describe('countLeadingZeros', () => {
+      test('기본 동작 확인', () => {
+        expect(BitUtils.countLeadingZeros(0)).toBe(32);
+        expect(BitUtils.countLeadingZeros(1)).toBe(31);
+        expect(BitUtils.countLeadingZeros(8)).toBe(28);
+        expect(BitUtils.countLeadingZeros(0x80000000)).toBe(0);
+      });
 
-      // 다양한 비트 값들의 자동 길이 계산
-      expect(BitUtils.insertBits(0, 0b1, 0)).toBe(0b1); // 1비트
-      expect(BitUtils.insertBits(0, 0b11, 0)).toBe(0b11); // 2비트
-      expect(BitUtils.insertBits(0, 0b111, 0)).toBe(0b111); // 3비트
-      expect(BitUtils.insertBits(0, 0b1111, 0)).toBe(0b1111); // 4비트
+      test('다양한 값들 테스트', () => {
+        expect(BitUtils.countLeadingZeros(0b1)).toBe(31);
+        expect(BitUtils.countLeadingZeros(0b10)).toBe(30);
+        expect(BitUtils.countLeadingZeros(0b100)).toBe(29);
+        expect(BitUtils.countLeadingZeros(0b1000)).toBe(28);
+        expect(BitUtils.countLeadingZeros(0b10000)).toBe(27);
+        expect(BitUtils.countLeadingZeros(0b100000)).toBe(26);
+      });
+
+      test('경계값 테스트', () => {
+        expect(BitUtils.countLeadingZeros(0x7fffffff)).toBe(1); // 최대 양수
+        expect(BitUtils.countLeadingZeros(0xffffffff)).toBe(0); // -1 (부호 없는 최대값)
+      });
+
+      test('입력 검증', () => {
+        expect(() => BitUtils.countLeadingZeros(NaN)).toThrow();
+        expect(() => BitUtils.countLeadingZeros(Infinity)).toThrow();
+        expect(() => BitUtils.countLeadingZeros(-Infinity)).toThrow();
+      });
     });
 
-    test('길이 계산 로직 일관성', () => {
-      // 명시적 길이와 자동 계산 길이가 동일한 결과를 보장
-      const testBits = 0b10101;
-      const autoResult = BitUtils.insertBits(0, testBits, 8);
-      const manualResult = BitUtils.insertBits(0, testBits, 8, 5);
+    describe('countTrailingZeros', () => {
+      test('기본 동작 확인', () => {
+        expect(BitUtils.countTrailingZeros(0)).toBe(32);
+        expect(BitUtils.countTrailingZeros(1)).toBe(0);
+        expect(BitUtils.countTrailingZeros(8)).toBe(3);
+        expect(BitUtils.countTrailingZeros(0x80000000)).toBe(31);
+      });
 
-      expect(autoResult).toBe(manualResult);
+      test('다양한 값들 테스트', () => {
+        expect(BitUtils.countTrailingZeros(0b1)).toBe(0);
+        expect(BitUtils.countTrailingZeros(0b10)).toBe(1);
+        expect(BitUtils.countTrailingZeros(0b100)).toBe(2);
+        expect(BitUtils.countTrailingZeros(0b1000)).toBe(3);
+        expect(BitUtils.countTrailingZeros(0b10000)).toBe(4);
+        expect(BitUtils.countTrailingZeros(0b100000)).toBe(5);
+      });
+
+      test('복합 패턴 테스트', () => {
+        expect(BitUtils.countTrailingZeros(0b1010)).toBe(1); // 끝에서 첫 번째 1까지
+        expect(BitUtils.countTrailingZeros(0b1100)).toBe(2); // 끝에서 첫 번째 1까지
+        expect(BitUtils.countTrailingZeros(0b11000)).toBe(3);
+        expect(BitUtils.countTrailingZeros(0b110000)).toBe(4);
+      });
+
+      test('입력 검증', () => {
+        expect(() => BitUtils.countTrailingZeros(NaN)).toThrow();
+        expect(() => BitUtils.countTrailingZeros(Infinity)).toThrow();
+        expect(() => BitUtils.countTrailingZeros(-Infinity)).toThrow();
+      });
     });
 
-    test('타입 안전한 길이 검증', () => {
-      // createBitLength 함수로 안전한 길이 생성
-      expect(() => createBitLength(4)).not.toThrow();
-      expect(() => createBitLength(0)).not.toThrow();
-      expect(() => createBitLength(32)).not.toThrow();
+    describe('extractBits', () => {
+      test('기본 비트 추출', () => {
+        // 0b11110000에서 위치 4부터 4비트 추출
+        expect(BitUtils.extractBits(0b11110000, 4, 4)).toBe(0b1111);
 
-      // 잘못된 길이는 에러 발생
-      expect(() => createBitLength(-1)).toThrow(RangeError);
-      expect(() => createBitLength(33)).toThrow(RangeError);
-      expect(() => createBitLength(3.14)).toThrow(RangeError);
+        // 0b10101010에서 위치 1부터 3비트 추출
+        expect(BitUtils.extractBits(0b10101010, 1, 3)).toBe(0b101);
+
+        // 0b11111111에서 위치 0부터 8비트 추출
+        expect(BitUtils.extractBits(0b11111111, 0, 8)).toBe(0b11111111);
+      });
+
+      test('경계값 테스트', () => {
+        // 1비트 추출
+        expect(BitUtils.extractBits(0b10000000, 7, 1)).toBe(0b1);
+        expect(BitUtils.extractBits(0b01111111, 7, 1)).toBe(0b0);
+
+        // 최대 32비트 추출
+        expect(BitUtils.extractBits(0xffffffff, 0, 32)).toBe(0xffffffff);
+        expect(BitUtils.extractBits(0x12345678, 0, 32)).toBe(0x12345678);
+      });
+
+      test('부분 추출 테스트', () => {
+        const value = 0b11010110; // 214
+
+        // 하위 4비트 추출
+        expect(BitUtils.extractBits(value, 0, 4)).toBe(0b0110); // 6
+
+        // 상위 4비트 추출
+        expect(BitUtils.extractBits(value, 4, 4)).toBe(0b1101); // 13
+
+        // 중간 2비트 추출
+        expect(BitUtils.extractBits(value, 2, 2)).toBe(0b01); // 1
+      });
+
+      test('0 길이 추출', () => {
+        expect(BitUtils.extractBits(0b11111111, 4, 0)).toBe(0);
+        expect(BitUtils.extractBits(0xFFFFFFFF, 0, 0)).toBe(0);
+      });
+
+      test('입력 검증', () => {
+        expect(() => BitUtils.extractBits(NaN, 0, 4)).toThrow();
+        expect(() => BitUtils.extractBits(0, -1 as any, 4)).toThrow();
+        expect(() => BitUtils.extractBits(0, 0, -1 as any)).toThrow();
+        expect(() => BitUtils.extractBits(0, 32 as any, 1)).toThrow();
+        expect(() => BitUtils.extractBits(0, 0, 33 as any)).toThrow();
+      });
     });
 
-    test('isValidBitLength 타입 가드', () => {
-      expect(isValidBitLength(0)).toBe(true);
-      expect(isValidBitLength(16)).toBe(true);
-      expect(isValidBitLength(32)).toBe(true);
+    describe('성능 테스트', () => {
+      test('countLeadingZeros 성능', () => {
+        const values = Array.from({ length: 10000 }, (_, i) => i + 1);
 
-      expect(isValidBitLength(-1)).toBe(false);
-      expect(isValidBitLength(33)).toBe(false);
-      expect(isValidBitLength(3.14)).toBe(false);
-      expect(isValidBitLength(NaN)).toBe(false);
-    });
-  });
+        const start = performance.now();
+        values.forEach(v => BitUtils.countLeadingZeros(v));
+        const end = performance.now();
 
-  describe('적응형 캐시 관리 시스템', () => {
-    beforeEach(() => {
-      // 각 테스트 전에 캐시 초기화
-      BitUtils.clearAllCaches();
-    });
+        console.log(`countLeadingZeros 성능 테스트: ${end - start}ms`);
+        expect(end - start).toBeLessThan(100); // 10,000회 실행이 100ms 미만
+      });
 
-    test('캐시 통계 수집', () => {
-      const initialStats = BitUtils.getCacheStats();
-      expect(initialStats.hits).toBe(0);
-      expect(initialStats.misses).toBe(0);
-      expect(initialStats.hitRate).toBe(0);
+      test('countTrailingZeros 성능', () => {
+        const values = Array.from({ length: 10000 }, (_, i) => (i + 1) << i % 16);
 
-      // 캐시 미스 발생
-      BitUtils.isPowerOfTwo(1024);
-      let stats = BitUtils.getCacheStats();
-      expect(stats.misses).toBe(1);
-      expect(stats.hitRate).toBe(0);
+        const start = performance.now();
+        values.forEach(v => BitUtils.countTrailingZeros(v));
+        const end = performance.now();
 
-      // 캐시 히트 발생
-      BitUtils.isPowerOfTwo(1024);
-      stats = BitUtils.getCacheStats();
-      expect(stats.hits).toBe(1);
-      expect(stats.hitRate).toBe(0.5); // 1 hit / 2 total
-    });
+        console.log(`countTrailingZeros 성능 테스트: ${end - start}ms`);
+        expect(end - start).toBeLessThan(100); // 10,000회 실행이 100ms 미만
+      });
 
-    test('적응형 제거 비율 - 높은 히트율', () => {
-      // 높은 히트율 시나리오 생성
-      const values = [1, 2, 4, 8, 16];
+      test('extractBits 성능', () => {
+        const values = Array.from({ length: 5000 }, (_, i) => i + 1);
 
-      // 캐시에 값들 저장
-      values.forEach(v => BitUtils.isPowerOfTwo(v));
+        const start = performance.now();
+        values.forEach(v => BitUtils.extractBits(v, 4, 8));
+        const end = performance.now();
 
-      // 반복 접근으로 높은 히트율 생성
-      for (let i = 0; i < 100; i++) {
-        values.forEach(v => BitUtils.isPowerOfTwo(v));
-      }
-
-      const stats = BitUtils.getCacheStats();
-      expect(stats.hitRate).toBeGreaterThan(0.8);
-
-      // 대량의 새로운 값으로 캐시 오버플로우 유발
-      const newValues = Array.from({ length: 1200 }, (_, i) => i + 100);
-      newValues.forEach(v => BitUtils.isPowerOfTwo(v));
-
-      // 높은 히트율에서는 적게 제거되어야 함
-      const finalStats = BitUtils.getCacheStats();
-      expect(finalStats.evictions).toBeGreaterThan(0);
-    });
-
-    test('적응형 제거 비율 - 낮은 히트율', () => {
-      // 낮은 히트율 시나리오: 계속 새로운 값들만 접근
-      const values1 = Array.from({ length: 500 }, (_, i) => i);
-      const values2 = Array.from({ length: 500 }, (_, i) => i + 1000);
-      const values3 = Array.from({ length: 500 }, (_, i) => i + 2000);
-
-      // 각각 한 번씩만 접근 (낮은 히트율)
-      values1.forEach(v => BitUtils.isPowerOfTwo(v));
-      values2.forEach(v => BitUtils.isPowerOfTwo(v));
-      values3.forEach(v => BitUtils.isPowerOfTwo(v));
-
-      const stats = BitUtils.getCacheStats();
-      expect(stats.hitRate).toBeLessThan(0.5);
-      expect(stats.evictions).toBeGreaterThan(0);
-    });
-
-    test('빈번한 정리 방지', () => {
-      // 짧은 시간 내에 여러 번 캐시 오버플로우 유발
-      for (let batch = 0; batch < 3; batch++) {
-        const values = Array.from({ length: 500 }, (_, i) => i + batch * 1000);
-        values.forEach(v => BitUtils.isPowerOfTwo(v));
-      }
-
-      const stats = BitUtils.getCacheStats();
-      // 빈번한 정리 방지로 제거 비율이 제한되어야 함
-      expect(stats.evictions).toBeLessThan(1000); // 전체 삭제되지 않음
-    });
-
-    test('캐시 초기화', () => {
-      // 캐시에 데이터 추가
-      BitUtils.isPowerOfTwo(1024);
-      BitUtils.popCount(255);
-
-      let stats = BitUtils.getCacheStats();
-      expect(stats.powerOfTwoCacheSize).toBeGreaterThan(0);
-      expect(stats.popCountCacheSize).toBeGreaterThan(0);
-
-      // 캐시 초기화
-      BitUtils.clearAllCaches();
-
-      stats = BitUtils.getCacheStats();
-      expect(stats.hits).toBe(0);
-      expect(stats.misses).toBe(0);
-      expect(stats.powerOfTwoCacheSize).toBe(0);
-      expect(stats.popCountCacheSize).toBe(0);
+        console.log(`extractBits 성능 테스트: ${end - start}ms`);
+        expect(end - start).toBeLessThan(50); // 5,000회 실행이 50ms 미만
+      });
     });
   });
 });

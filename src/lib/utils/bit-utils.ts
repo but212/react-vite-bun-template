@@ -1,3 +1,5 @@
+import { AdaptiveLRUCache, type CacheStats } from "./cache-strategy";
+
 /**
  * 0~31까지의 비트 위치를 나타내는 타입입니다.
  * @remarks
@@ -88,91 +90,9 @@ class BitUtils {
   private static readonly MAX_32BIT = 0x7fffffff;
   private static readonly MIN_32BIT = -0x80000000;
 
-  // 성능 최적화를 위한 LRU 캐시
-  private static readonly POWER_OF_TWO_CACHE = new Map<number, boolean>();
-  private static readonly POPCOUNT_CACHE = new Map<number, number>();
-
-  /** 캐시 크기 제한 (메모리 사용량 제어) */
-  private static readonly MAX_CACHE_SIZE = 1000;
-  
-  /** 적응형 캐시 관리를 위한 통계 */
-  private static cacheStats = {
-    hits: 0,
-    misses: 0,
-    evictions: 0,
-    lastCleanup: Date.now()
-  };
-
-  /**
-   * 워크로드 패턴에 따른 적응형 캐시 관리
-   * @private
-   */
-  private static maintainCacheSize<T>(cache: Map<number, T>): void {
-    if (cache.size <= this.MAX_CACHE_SIZE) return;
-
-    const now = Date.now();
-    const timeSinceLastCleanup = now - this.cacheStats.lastCleanup;
-    const hitRate = this.cacheStats.hits / (this.cacheStats.hits + this.cacheStats.misses);
-
-    // 적응형 제거 비율: 히트율이 높으면 적게, 낮으면 많이 제거
-    let removalRatio = 0.3; // 기본 30%
-    if (hitRate > 0.8) {
-      removalRatio = 0.2; // 히트율 높음: 20%만 제거
-    } else if (hitRate < 0.5) {
-      removalRatio = 0.4; // 히트율 낮음: 40% 제거
-    }
-
-    // 빈번한 정리 방지: 최소 간격 유지
-    if (timeSinceLastCleanup < 1000) { // 1초 미만이면
-      removalRatio = Math.min(removalRatio, 0.1); // 최대 10%만 제거
-    }
-
-    const entriesToRemove = Math.floor(cache.size * removalRatio);
-    const keysToRemove = Array.from(cache.keys()).slice(0, entriesToRemove);
-    
-    for (const key of keysToRemove) {
-      cache.delete(key);
-    }
-
-    this.cacheStats.evictions += entriesToRemove;
-    this.cacheStats.lastCleanup = now;
-  }
-
-  /**
-   * 캐시에서 값을 가져오고 LRU 순서를 업데이트합니다.
-   * @private
-   * @remarks
-   * Map의 delete/set 조합으로 진정한 LRU 구현:
-   * - 접근된 항목을 맨 뒤로 이동 (가장 최근 사용)
-   * - 가장 앞쪽 항목들이 가장 오래된 항목 (LRU 후보)
-   */
-  private static getCachedValue<T>(cache: Map<number, T>, key: number): T | undefined {
-    const value = cache.get(key);
-    if (value !== undefined) {
-      // 진정한 LRU: 접근 시 항목을 맨 뒤로 이동
-      cache.delete(key);
-      cache.set(key, value);
-      this.cacheStats.hits++;
-    } else {
-      this.cacheStats.misses++;
-    }
-    return value;
-  }
-
-  /**
-   * 캐시에 값을 저장하고 크기를 관리합니다.
-   * @private
-   * @remarks
-   * 새로운 항목은 자동으로 맨 뒤에 추가되어 가장 최근 사용된 것으로 간주됩니다.
-   */
-  private static setCachedValue<T>(cache: Map<number, T>, key: number, value: T): void {
-    // 이미 존재하는 키라면 먼저 제거 (순서 업데이트)
-    if (cache.has(key)) {
-      cache.delete(key);
-    }
-    cache.set(key, value);
-    this.maintainCacheSize(cache);
-  }
+  // AdaptiveLRUCache를 활용한 성능 최적화 캐시
+  private static readonly powerOfTwoCache = new AdaptiveLRUCache<number, boolean>(1000);
+  private static readonly popCountCache = new AdaptiveLRUCache<number, number>(1000);
 
   /**
    * 현재 환경에서 입력값 검증을 수행해야 하는지 판단합니다.
@@ -228,7 +148,7 @@ class BitUtils {
    * @remarks
    * - 0 또는 음수는 항상 `false`를 반환합니다.
    * - 2의 거듭제곱이란, 정확히 하나의 비트만 1로 설정된 양의 정수를 의미합니다.
-   * - LRU 방식의 캐싱으로 성능을 최적화합니다.
+   * - AdaptiveLRUCache를 활용한 지능형 캐싱으로 성능을 최적화합니다.
    *
    * @example
    * ```typescript
@@ -246,7 +166,7 @@ class BitUtils {
     }
 
     // 캐시 확인
-    const cachedValue = this.getCachedValue(this.POWER_OF_TWO_CACHE, n);
+    const cachedValue = this.powerOfTwoCache.get(n);
     if (cachedValue !== undefined) {
       return cachedValue;
     }
@@ -254,7 +174,7 @@ class BitUtils {
     const result = n > 0 && (n & (n - 1)) === 0;
 
     // 캐시에 저장
-    this.setCachedValue(this.POWER_OF_TWO_CACHE, n, result);
+    this.powerOfTwoCache.set(n, result);
 
     return result;
   }
@@ -416,7 +336,7 @@ class BitUtils {
    * - Brian Kernighan 알고리즘을 사용하여 효율적으로 계산합니다.
    * - 입력값이 0이면 0을 반환합니다.
    * - 입력값이 음수일 경우 32비트 2의 보수 표현 기준으로 팝카운트를 계산합니다.
-   * - LRU 방식의 캐싱으로 성능을 최적화합니다.
+   * - AdaptiveLRUCache를 활용한 지능형 캐싱으로 성능을 최적화합니다.
    *
    * @example
    * ```typescript
@@ -433,7 +353,7 @@ class BitUtils {
     const unsignedX = x >>> 0;
 
     // 캐시 확인
-    const cachedValue = this.getCachedValue(this.POPCOUNT_CACHE, unsignedX);
+    const cachedValue = this.popCountCache.get(unsignedX);
     if (cachedValue !== undefined) {
       return cachedValue;
     }
@@ -446,173 +366,9 @@ class BitUtils {
     }
 
     // 캐시에 저장
-    this.setCachedValue(this.POPCOUNT_CACHE, unsignedX, count);
+    this.popCountCache.set(unsignedX, count);
 
     return count;
-  }
-
-  /**
-   * 주어진 32비트 정수 `x`의 이진수 표현에서 선행 0(leading zero)의 개수를 반환합니다.
-   *
-   * @param x 선행 0의 개수를 계산할 32비트 정수 값
-   * @returns `x`의 2진수 표현에서 앞부분에 연속으로 나타나는 0의 개수 (0~32)
-   *
-   * @throws {TypeError} x가 정수가 아니거나 32비트 범위를 벗어난 경우
-   *
-   * @remarks
-   * - `x`가 0이면 32를 반환합니다.
-   * - JavaScript의 `Math.clz32`를 사용하여 부호 없는 32비트 정수로 처리합니다.
-   * - 예를 들어, 8(`0b00000000_00000000_00000000_00001000`)의 선행 0 개수는 28입니다.
-   *
-   * @example
-   * ```typescript
-   * BitUtils.countLeadingZeros(0);      // 32
-   * BitUtils.countLeadingZeros(1);      // 31
-   * BitUtils.countLeadingZeros(8);      // 28
-   * BitUtils.countLeadingZeros(0x80000000); // 0
-   * ```
-   */
-  static countLeadingZeros(x: number): number {
-    x = this.validate32Bit(x, 'countLeadingZeros');
-    return Math.clz32(x);
-  }
-
-  /**
-   * 주어진 32비트 정수 `x`의 이진수 표현에서 후행 0(trailing zero)의 개수를 반환합니다.
-   *
-   * @param x 후행 0의 개수를 계산할 32비트 정수 값
-   * @returns `x`의 2진수 표현에서 끝부분(최하위 비트)부터 연속으로 나타나는 0의 개수 (0~32)
-   *
-   * @throws {TypeError} x가 정수가 아니거나 32비트 범위를 벗어난 경우
-   *
-   * @remarks
-   * - `x`가 0이면 32를 반환합니다.
-   * - Brian Kernighan 알고리즘과 `Math.clz32`를 활용해 효율적으로 계산합니다.
-   * - 예를 들어, 8(`0b00000000_00000000_00000000_00001000`)의 후행 0 개수는 3입니다.
-   *
-   * @example
-   * ```typescript
-   * BitUtils.countTrailingZeros(0);      // 32
-   * BitUtils.countTrailingZeros(1);      // 0
-   * BitUtils.countTrailingZeros(8);      // 3
-   * BitUtils.countTrailingZeros(0x80000000); // 31
-   * ```
-   */
-  static countTrailingZeros(x: number): number {
-    x = this.validate32Bit(x, 'countTrailingZeros');
-    if (x === 0) return 32;
-    return 31 - Math.clz32(x & -x);
-  }
-
-  // ===== 새로운 비트 조작 메서드 =====
-
-  /**
-   * 주어진 비트 값의 유효 비트 길이를 계산합니다.
-   * @private
-   * @param bits 길이를 계산할 비트 값
-   * @returns 유효 비트 길이 (0~32)
-   * @remarks
-   * - bits가 0이면 0을 반환 (아무것도 삽입하지 않음)
-   * - 그 외의 경우 Math.clz32를 사용하여 효율적으로 계산
-   */
-  private static calcBitLength(bits: number): BitLengthWithZero {
-    if (bits === 0) {
-      return 0;
-    }
-    return (32 - Math.clz32(bits)) as BitLengthWithZero;
-  }
-
-  /**
-   * 주어진 32비트 정수에서 지정된 위치와 길이의 비트들을 추출합니다.
-   *
-   * @param x 비트를 추출할 32비트 정수 값
-   * @param start 추출을 시작할 비트 위치 (0=최하위 비트)
-   * @param length 추출할 비트의 개수 (1~32)
-   * @returns 추출된 비트들로 구성된 정수 값
-   *
-   * @throws {TypeError} x가 정수가 아니거나 32비트 범위를 벗어난 경우
-   * @throws {RangeError} start나 length가 유효하지 않은 경우
-   *
-   * @remarks
-   * - start + length는 32를 초과할 수 없습니다.
-   * - 추출된 비트들은 최하위 비트부터 배치됩니다.
-   *
-   * @example
-   * ```typescript
-   * BitUtils.extractBits(0b11110000, 4, 4); // 15 (0b1111)
-   * BitUtils.extractBits(0b10101010, 1, 3); // 5 (0b101)
-   * BitUtils.extractBits(0xff00ff00, 8, 8); // 255 (0b11111111)
-   * ```
-   */
-  static extractBits(x: number, start: BitPosition, length: BitLength): number {
-    x = this.validate32Bit(x, 'extractBits');
-    if (start + length > 32) {
-      throw new RangeError('extractBits: start + length must not exceed 32');
-    }
-
-    // 32비트 전체를 추출하는 경우 특별 처리
-    if (length === 32) {
-      return (x >>> start) >>> 0;
-    }
-
-    const mask = (1 << length) - 1;
-    return (x >>> start) & mask;
-  }
-
-  /**
-   * 주어진 32비트 정수의 지정된 위치에 비트들을 삽입합니다.
-   *
-   * @param x 비트를 삽입할 대상 32비트 정수 값
-   * @param bits 삽입할 비트 값
-   * @param start 삽입을 시작할 비트 위치 (0=최하위 비트)
-   * @param length 삽입할 비트의 개수 (기본값: bits의 유효 비트 수)
-   * @returns 비트가 삽입된 새로운 32비트 정수 값
-   *
-   * @throws {TypeError} x나 bits가 정수가 아니거나 32비트 범위를 벗어난 경우
-   * @throws {RangeError} start나 length가 유효하지 않은 경우
-   *
-   * @remarks
-   * - 기존 위치의 비트들은 삽입되는 비트들로 덮어씌워집니다.
-   * - length를 지정하지 않으면 bits의 유효 비트 수를 자동 계산합니다.
-   * - 타입 안전성을 위해 length는 컴파일 타임에 검증됩니다.
-   *
-   * @example
-   * ```typescript
-   * BitUtils.insertBits(0, 0b1111, 4, 4);     // 240 (0b11110000)
-   * BitUtils.insertBits(0b11110000, 0b101, 1, 3); // 234 (0b11101010)
-   * BitUtils.insertBits(0xff00ff00, 0b1010, 4, 4); // 0xff00ffa0
-   * 
-   * // 타입 안전한 길이 사용
-   * const safeLength = createBitLength(4);
-   * BitUtils.insertBits(0, 0b1111, 4, safeLength); // 컴파일 타임 안전
-   * ```
-   */
-  static insertBits(x: number, bits: number, start: BitPosition, length?: BitLengthWithZero): number {
-    x = this.validate32Bit(x, 'insertBits');
-    bits = this.validate32Bit(bits, 'insertBits');
-
-    // length가 지정되지 않으면 bits의 유효 비트 수 계산
-    if (length === undefined) {
-      length = this.calcBitLength(bits);
-    }
-
-    // 런타임에서도 타입 안전성 보장
-    if (!isValidBitLength(length)) {
-      throw new RangeError(`insertBits: Invalid length ${length}. Use createBitLength() for type-safe values.`);
-    }
-    
-    if (start + length > 32) {
-      throw new RangeError('insertBits: start + length must not exceed 32');
-    }
-
-    // length가 0이면 아무것도 삽입하지 않음
-    if (length === 0) {
-      return x >>> 0;
-    }
-
-    const mask = ((1 << length) - 1) << start;
-    const maskedBits = (bits & ((1 << length) - 1)) << start;
-    return ((x & ~mask) | maskedBits) >>> 0;
   }
 
   /**
@@ -674,6 +430,132 @@ class BitUtils {
       this.REVERSE_LOOKUP[i] = reversed;
     }
     this.isLookupInitialized = true;
+  }
+
+  // ===== 새로운 비트 조작 메서드 =====
+
+  /**
+   * 주어진 비트 값의 유효 비트 길이를 계산합니다.
+   * @private
+   * @param bits 길이를 계산할 비트 값
+   * @returns 유효 비트 길이 (0~32)
+   * @remarks
+   * - bits가 0이면 0을 반환 (아무것도 삽입하지 않음)
+   * - 그 외의 경우 Math.clz32를 사용하여 효율적으로 계산
+   */
+  private static calcBitLength(bits: number): BitLengthWithZero {
+    if (bits === 0) {
+      return 0;
+    }
+    return (32 - Math.clz32(bits)) as BitLengthWithZero;
+  }
+
+  /**
+   * 주어진 32비트 정수에서 지정된 위치와 길이의 비트들을 추출합니다.
+   *
+   * @param x 비트를 추출할 32비트 정수 값
+   * @param start 추출을 시작할 비트 위치 (0=최하위 비트)
+   * @param length 추출할 비트의 개수 (1~32)
+   * @returns 추출된 비트들로 구성된 정수 값
+   *
+   * @throws {TypeError} x가 정수가 아니거나 32비트 범위를 벗어난 경우
+   * @throws {RangeError} start나 length가 유효하지 않은 경우
+   *
+   * @remarks
+   * - start + length는 32를 초과할 수 없습니다.
+   * - 추출된 비트들은 최하위 비트부터 배치됩니다.
+   *
+   * @example
+   * ```typescript
+   * BitUtils.extractBits(0b11110000, 4, 4); // 15 (0b1111)
+   * BitUtils.extractBits(0b10101010, 1, 3); // 5 (0b101)
+   * BitUtils.extractBits(0xff00ff00, 8, 8); // 255 (0b11111111)
+   * ```
+   */
+  static extractBits(x: number, start: BitPosition, length: BitLengthWithZero): number {
+    x = this.validate32Bit(x, 'extractBits');
+    
+    // 음수 검증
+    if (start < 0) {
+      throw new RangeError('extractBits: start must be non-negative');
+    }
+    if (length < 0) {
+      throw new RangeError('extractBits: length must be non-negative');
+    }
+    
+    // 0 길이인 경우 0 반환
+    if (length === 0) {
+      return 0;
+    }
+    
+    if (start + length > 32) {
+      throw new RangeError('extractBits: start + length must not exceed 32');
+    }
+
+    // 32비트 전체를 추출하는 경우 특별 처리
+    if (length === 32) {
+      return (x >>> start) >>> 0;
+    }
+
+    const mask = ((1 << length) - 1) << start;
+    const maskedBits = (x >>> start) & ((1 << length) - 1);
+    return maskedBits >>> 0;
+  }
+
+  /**
+   * 주어진 32비트 정수의 지정된 위치에 비트들을 삽입합니다.
+   *
+   * @param x 비트를 삽입할 대상 32비트 정수 값
+   * @param bits 삽입할 비트 값
+   * @param start 삽입을 시작할 비트 위치 (0=최하위 비트)
+   * @param length 삽입할 비트의 개수 (기본값: bits의 유효 비트 수)
+   * @returns 비트가 삽입된 새로운 32비트 정수 값
+   *
+   * @throws {TypeError} x나 bits가 정수가 아니거나 32비트 범위를 벗어난 경우
+   * @throws {RangeError} start나 length가 유효하지 않은 경우
+   *
+   * @remarks
+   * - 기존 위치의 비트들은 삽입되는 비트들로 덮어씌워집니다.
+   * - length를 지정하지 않으면 bits의 유효 비트 수를 자동 계산합니다.
+   * - 타입 안전성을 위해 length는 컴파일 타임에 검증됩니다.
+   *
+   * @example
+   * ```typescript
+   * BitUtils.insertBits(0, 0b1111, 4, 4);     // 240 (0b11110000)
+   * BitUtils.insertBits(0b11110000, 0b101, 1, 3); // 234 (0b11101010)
+   * BitUtils.insertBits(0xff00ff00, 0b1010, 4, 4); // 0xff00ffa0
+   * 
+   * // 타입 안전한 길이 사용
+   * const safeLength = createBitLength(4);
+   * BitUtils.insertBits(0, 0b1111, 4, safeLength); // 컴파일 타임 안전
+   * ```
+   */
+  static insertBits(x: number, bits: number, start: BitPosition, length?: BitLengthWithZero): number {
+    x = this.validate32Bit(x, 'insertBits');
+    bits = this.validate32Bit(bits, 'insertBits');
+
+    // length가 지정되지 않으면 bits의 유효 비트 수 계산
+    if (length === undefined) {
+      length = this.calcBitLength(bits);
+    }
+
+    // 런타임에서도 타입 안전성 보장
+    if (!isValidBitLength(length)) {
+      throw new RangeError(`insertBits: Invalid length ${length}. Use createBitLength() for type-safe values.`);
+    }
+    
+    if (start + length > 32) {
+      throw new RangeError('insertBits: start + length must not exceed 32');
+    }
+
+    // length가 0이면 아무것도 삽입하지 않음
+    if (length === 0) {
+      return x >>> 0;
+    }
+
+    const mask = ((1 << length) - 1) << start;
+    const maskedBits = (bits & ((1 << length) - 1)) << start;
+    return ((x & ~mask) | maskedBits) >>> 0;
   }
 
   // ===== 마스크 상수 =====
@@ -789,21 +671,77 @@ class BitUtils {
    * @returns 캐시 히트율, 미스 수, 히트 수, 제거 수 등의 통계
    */
   static getCacheStats(): {
-    hits: number;
-    misses: number;
-    hitRate: number;
-    evictions: number;
-    lastCleanup: number;
-    powerOfTwoCacheSize: number;
-    popCountCacheSize: number;
+    powerOfTwoCache: CacheStats;
+    popCountCache: CacheStats;
+    combinedHitRate: number;
   } {
-    const total = this.cacheStats.hits + this.cacheStats.misses;
+    const powerStats = this.powerOfTwoCache.getStats();
+    const popStats = this.popCountCache.getStats();
+    
+    const totalHits = powerStats.hits + popStats.hits;
+    const totalMisses = powerStats.misses + popStats.misses;
+    const combinedHitRate = totalHits + totalMisses > 0 
+      ? totalHits / (totalHits + totalMisses) 
+      : 0;
+
     return {
-      ...this.cacheStats,
-      hitRate: total > 0 ? this.cacheStats.hits / total : 0,
-      powerOfTwoCacheSize: this.POWER_OF_TWO_CACHE.size,
-      popCountCacheSize: this.POPCOUNT_CACHE.size
+      powerOfTwoCache: powerStats,
+      popCountCache: popStats,
+      combinedHitRate
     };
+  }
+
+  /**
+   * 주어진 32비트 정수 `x`의 이진수 표현에서 선행 0(leading zero)의 개수를 반환합니다.
+   *
+   * @param x 선행 0의 개수를 계산할 32비트 정수 값
+   * @returns `x`의 2진수 표현에서 앞부분에 연속으로 나타나는 0의 개수 (0~32)
+   *
+   * @throws {TypeError} x가 정수가 아니거나 32비트 범위를 벗어난 경우
+   *
+   * @remarks
+   * - `x`가 0이면 32를 반환합니다.
+   * - JavaScript의 `Math.clz32`를 사용하여 부호 없는 32비트 정수로 처리합니다.
+   * - 예를 들어, 8(`0b00000000_00000000_00000000_00001000`)의 선행 0 개수는 28입니다.
+   *
+   * @example
+   * ```typescript
+   * BitUtils.countLeadingZeros(0);      // 32
+   * BitUtils.countLeadingZeros(1);      // 31
+   * BitUtils.countLeadingZeros(8);      // 28
+   * BitUtils.countLeadingZeros(0x80000000); // 0
+   * ```
+   */
+  static countLeadingZeros(x: number): number {
+    x = this.validate32Bit(x, 'countLeadingZeros');
+    return Math.clz32(x);
+  }
+
+  /**
+   * 주어진 32비트 정수 `x`의 이진수 표현에서 후행 0(trailing zero)의 개수를 반환합니다.
+   *
+   * @param x 후행 0의 개수를 계산할 32비트 정수 값
+   * @returns `x`의 2진수 표현에서 끝부분(최하위 비트)부터 연속으로 나타나는 0의 개수 (0~32)
+   *
+   * @throws {TypeError} x가 정수가 아니거나 32비트 범위를 벗어난 경우
+   *
+   * @remarks
+   * - `x`가 0이면 32를 반환합니다.
+   * - Brian Kernighan 알고리즘과 `Math.clz32`를 활용해 효율적으로 계산합니다.
+   * - 예를 들어, 8(`0b00000000_00000000_00000000_00001000`)의 후행 0 개수는 3입니다.
+   *
+   * @example
+   * ```typescript
+   * BitUtils.countTrailingZeros(0);      // 32
+   * BitUtils.countTrailingZeros(1);      // 0
+   * BitUtils.countTrailingZeros(8);      // 3
+   * BitUtils.countTrailingZeros(0x80000000); // 31
+   * ```
+   */
+  static countTrailingZeros(x: number): number {
+    x = this.validate32Bit(x, 'countTrailingZeros');
+    if (x === 0) return 32;
+    return 31 - Math.clz32(x & -x);
   }
 
   /**
@@ -812,14 +750,8 @@ class BitUtils {
    * 테스트나 메모리 정리 목적으로 사용됩니다.
    */
   static clearAllCaches(): void {
-    this.POWER_OF_TWO_CACHE.clear();
-    this.POPCOUNT_CACHE.clear();
-    this.cacheStats = {
-      hits: 0,
-      misses: 0,
-      evictions: 0,
-      lastCleanup: Date.now()
-    };
+    this.powerOfTwoCache.clear();
+    this.popCountCache.clear();
   }
 }
 
