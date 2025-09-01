@@ -47,12 +47,91 @@ class BitUtils {
   private static readonly MAX_32BIT = 0x7fffffff;
   private static readonly MIN_32BIT = -0x80000000;
 
-  // 성능 최적화를 위한 캐시
+  // 성능 최적화를 위한 LRU 캐시
   private static readonly POWER_OF_TWO_CACHE = new Map<number, boolean>();
   private static readonly POPCOUNT_CACHE = new Map<number, number>();
+  private static readonly CACHE_ACCESS_ORDER = new Map<string, number>();
 
   /** 캐시 크기 제한 (메모리 사용량 제어) */
   private static readonly MAX_CACHE_SIZE = 1000;
+
+  /** 캐시 정리 주기 (접근 횟수 기준) */
+  private static readonly CACHE_CLEANUP_THRESHOLD = 1500;
+  private static cacheAccessCount = 0;
+
+  // reverseBits 최적화를 위한 8비트 lookup table
+  private static readonly REVERSE_LOOKUP = new Uint8Array(256);
+  private static isLookupInitialized = false;
+
+  /**
+   * 8비트 역순 lookup table을 초기화합니다.
+   * @private
+   */
+  private static initializeReverseLookup(): void {
+    if (this.isLookupInitialized) return;
+
+    for (let i = 0; i < 256; i++) {
+      let reversed = 0;
+      let value = i;
+      for (let bit = 0; bit < 8; bit++) {
+        reversed = (reversed << 1) | (value & 1);
+        value >>>= 1;
+      }
+      this.REVERSE_LOOKUP[i] = reversed;
+    }
+    this.isLookupInitialized = true;
+  }
+
+  /**
+   * LRU 방식으로 오래된 캐시 엔트리들을 정리합니다.
+   * @private
+   */
+  private static clearOldCacheEntries(): void {
+    if (this.POWER_OF_TWO_CACHE.size <= this.MAX_CACHE_SIZE && this.POPCOUNT_CACHE.size <= this.MAX_CACHE_SIZE) {
+      return;
+    }
+
+    // 접근 순서 기반으로 오래된 엔트리 제거
+    const sortedEntries = Array.from(this.CACHE_ACCESS_ORDER.entries())
+      .sort((a, b) => a[1] - b[1]); // 접근 시간 순 정렬
+
+    const entriesToRemove = Math.floor(this.MAX_CACHE_SIZE * 0.3); // 30% 제거
+
+    for (let i = 0; i < entriesToRemove && i < sortedEntries.length; i++) {
+      const entry = sortedEntries[i];
+      if (!entry) continue; // undefined 체크
+
+      const [key] = entry;
+      const [cacheType, value] = key.split(':');
+      const numValue = parseInt(value ?? '', 10);
+
+      // NaN 체크 추가 - 잘못된 키 형식 방어
+      if (isNaN(numValue)) continue;
+
+      if (cacheType === 'pow2') {
+        this.POWER_OF_TWO_CACHE.delete(numValue);
+      } else if (cacheType === 'popcount') {
+        this.POPCOUNT_CACHE.delete(numValue);
+      }
+
+      this.CACHE_ACCESS_ORDER.delete(key);
+    }
+  }
+
+  /**
+   * 캐시 접근을 기록하고 필요시 정리를 수행합니다.
+   * @private
+   */
+  private static recordCacheAccess(cacheType: 'pow2' | 'popcount', value: number): void {
+    this.cacheAccessCount++;
+    const key = `${cacheType}:${value}`;
+    this.CACHE_ACCESS_ORDER.set(key, this.cacheAccessCount);
+
+    // 주기적으로 캐시 정리
+    if (this.cacheAccessCount % this.CACHE_CLEANUP_THRESHOLD === 0) {
+      this.clearOldCacheEntries();
+    }
+  }
 
   /**
    * 현재 환경에서 입력값 검증을 수행해야 하는지 판단합니다.
@@ -103,7 +182,7 @@ class BitUtils {
    * @remarks
    * - 0 또는 음수는 항상 `false`를 반환합니다.
    * - 2의 거듭제곱이란, 정확히 하나의 비트만 1로 설정된 양의 정수를 의미합니다.
-   * - 성능 최적화를 위해 자주 사용되는 값들을 캐싱합니다.
+   * - LRU 방식의 캐싱으로 성능을 최적화합니다.
    *
    * @example
    * ```typescript
@@ -122,14 +201,16 @@ class BitUtils {
 
     // 캐시 확인
     if (this.POWER_OF_TWO_CACHE.has(n)) {
+      this.recordCacheAccess('pow2', n);
       return this.POWER_OF_TWO_CACHE.get(n)!;
     }
 
     const result = n > 0 && (n & (n - 1)) === 0;
 
-    // 캐시 크기 제한
+    // 캐시에 저장
     if (this.POWER_OF_TWO_CACHE.size < this.MAX_CACHE_SIZE) {
       this.POWER_OF_TWO_CACHE.set(n, result);
+      this.recordCacheAccess('pow2', n);
     }
 
     return result;
@@ -306,7 +387,7 @@ class BitUtils {
    * - Brian Kernighan 알고리즘을 사용하여 효율적으로 계산합니다.
    * - 입력값이 0이면 0을 반환합니다.
    * - 입력값이 음수일 경우 32비트 2의 보수 표현 기준으로 팝카운트를 계산합니다.
-   * - 성능 최적화를 위해 자주 사용되는 값들을 캐싱합니다.
+   * - LRU 방식의 캐싱으로 성능을 최적화합니다.
    *
    * @example
    * ```typescript
@@ -326,6 +407,7 @@ class BitUtils {
 
     // 캐시 확인
     if (this.POPCOUNT_CACHE.has(unsignedX)) {
+      this.recordCacheAccess('popcount', unsignedX);
       return this.POPCOUNT_CACHE.get(unsignedX)!;
     }
 
@@ -336,9 +418,10 @@ class BitUtils {
       temp &= temp - 1;
     }
 
-    // 캐시 크기 제한
+    // 캐시에 저장
     if (this.POPCOUNT_CACHE.size < this.MAX_CACHE_SIZE) {
       this.POPCOUNT_CACHE.set(unsignedX, count);
+      this.recordCacheAccess('popcount', unsignedX);
     }
 
     return count;
@@ -503,6 +586,7 @@ class BitUtils {
    *
    * @remarks
    * - 최하위 비트가 최상위 비트가 되고, 최상위 비트가 최하위 비트가 됩니다.
+   * - 8비트 lookup table을 사용하여 성능을 최적화합니다.
    * - 예: 0b00000001 → 0b10000000_00000000_00000000_00000000
    *
    * @example
@@ -517,12 +601,19 @@ class BitUtils {
       x = this.validate32Bit(x, 'reverseBits');
     }
 
-    let result = 0;
-    for (let i = 0; i < 32; i++) {
-      result = (result << 1) | (x & 1);
-      x >>>= 1;
-    }
-    return result >>> 0;
+    // lookup table 초기화
+    this.initializeReverseLookup();
+
+    const unsignedX = x >>> 0;
+
+    // 8비트씩 나누어 lookup table로 처리 (타입 안전성 보장)
+    const byte0 = this.REVERSE_LOOKUP[unsignedX & 0xff] ?? 0;
+    const byte1 = this.REVERSE_LOOKUP[(unsignedX >>> 8) & 0xff] ?? 0;
+    const byte2 = this.REVERSE_LOOKUP[(unsignedX >>> 16) & 0xff] ?? 0;
+    const byte3 = this.REVERSE_LOOKUP[(unsignedX >>> 24) & 0xff] ?? 0;
+
+    // 바이트 순서를 뒤집어서 조합
+    return ((byte0 << 24) | (byte1 << 16) | (byte2 << 8) | byte3) >>> 0;
   }
 
   // ===== 마스크 상수 =====

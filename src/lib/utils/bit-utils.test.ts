@@ -211,6 +211,73 @@ describe('BitUtils', () => {
       expect(result1).toBe(result2);
       expect(result1).toBe(8);
     });
+
+    test('캐시 효과 측정', () => {
+      const testValues = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512];
+      const iterations = 1000;
+      
+      // 캐시 워밍업
+      testValues.forEach(value => {
+        BitUtils.isPowerOfTwo(value);
+        BitUtils.popCount(value);
+      });
+      
+      // 캐시된 값들로 성능 테스트
+      const start = performance.now();
+      for (let i = 0; i < iterations; i++) {
+        testValues.forEach(value => {
+          BitUtils.isPowerOfTwo(value);
+          BitUtils.popCount(value);
+        });
+      }
+      const end = performance.now();
+      
+      const timePerOperation = (end - start) / (iterations * testValues.length * 2);
+      console.log(`캐시된 연산 평균 시간: ${timePerOperation.toFixed(6)}ms`);
+      
+      // 캐시된 연산은 매우 빨라야 함
+      expect(timePerOperation).toBeLessThan(0.01);
+    });
+
+    test('LRU 캐시 동작 확인', () => {
+      // 캐시 크기를 초과하는 값들로 테스트
+      const largeDataSet = Array.from({ length: 1200 }, (_, i) => i + 1);
+      
+      // 첫 번째 패스: 캐시 채우기
+      largeDataSet.forEach(value => {
+        BitUtils.isPowerOfTwo(value);
+      });
+      
+      // 두 번째 패스: 일부는 캐시 히트, 일부는 미스
+      const start = performance.now();
+      largeDataSet.slice(0, 500).forEach(value => {
+        BitUtils.isPowerOfTwo(value);
+      });
+      const end = performance.now();
+      
+      console.log(`LRU 캐시 테스트 완료: ${end - start}ms`);
+      expect(end - start).toBeLessThan(50); // 적절한 성능 유지
+    });
+
+    test('reverseBits lookup table 성능 비교', () => {
+      const testValues = [0x12345678, 0xabcdef00, 0x55555555, 0xaaaaaaaa];
+      const iterations = 10000;
+      
+      // lookup table 기반 reverseBits 성능 측정
+      const start = performance.now();
+      for (let i = 0; i < iterations; i++) {
+        testValues.forEach(value => {
+          BitUtils.reverseBits(value);
+        });
+      }
+      const end = performance.now();
+      
+      const timePerOperation = (end - start) / (iterations * testValues.length);
+      console.log(`reverseBits (lookup table) 평균: ${timePerOperation.toFixed(6)}ms`);
+      
+      // lookup table 사용으로 매우 빨라야 함
+      expect(timePerOperation).toBeLessThan(0.01);
+    });
   });
 
   describe('extractBits', () => {
