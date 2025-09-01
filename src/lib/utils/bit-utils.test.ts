@@ -88,14 +88,14 @@ describe('BitUtils', () => {
 
     test('RotationPosition 타입 제한 (1~31)', () => {
       // 컴파일 타임에 0은 허용되지 않음
-      expect(BitUtils.rotateLeft(0b1010, 1)).toBe(0b10100);
-      expect(BitUtils.rotateLeft(0b1010, 31)).toBe(0x80000005);
+      expect(BitUtils.rotateLeft(0b1010, 1)).toBe(0b10100); // 10 → 20
+      expect(BitUtils.rotateLeft(0b1010, 31)).toBe(5); // 10을 31비트 왼쪽 회전 = 5
     });
   });
 
   describe('rotateRight', () => {
     test('오른쪽 회전 - 정상 케이스', () => {
-      expect(BitUtils.rotateRight(0b0100, 2)).toBe(0x40000001); // 4를 오른쪽으로 2비트 회전
+      expect(BitUtils.rotateRight(0b0100, 2)).toBe(1); // 4를 오른쪽으로 2비트 회전 = 1
       expect(BitUtils.rotateRight(0b10000, 1)).toBe(0b1000); // 16 → 8
     });
 
@@ -104,8 +104,8 @@ describe('BitUtils', () => {
     });
 
     test('RotationPosition 타입 제한 (1~31)', () => {
-      expect(BitUtils.rotateRight(0b1010, 1)).toBe(0x80000005);
-      expect(BitUtils.rotateRight(0b1010, 31)).toBe(0b10100);
+      expect(BitUtils.rotateRight(0b1010, 1)).toBe(5); // 10을 1비트 오른쪽 회전 = 5
+      expect(BitUtils.rotateRight(0b1010, 31)).toBe(20); // 10을 31비트 오른쪽 회전 = 20
     });
   });
 
@@ -235,7 +235,7 @@ describe('BitUtils', () => {
   describe('insertBits', () => {
     test('비트 삽입 - 정상 케이스', () => {
       expect(BitUtils.insertBits(0, 0b1111, 4, 4)).toBe(0b11110000); // 240
-      expect(BitUtils.insertBits(0b11110000, 0b101, 1, 3)).toBe(0b11101010); // 234
+      expect(BitUtils.insertBits(0b11110000, 0b101, 1, 3)).toBe(0b11111010); // 250
       expect(BitUtils.insertBits(0xff00ff00, 0b1010, 4, 4)).toBe(0xff00ffa0);
     });
 
@@ -281,8 +281,11 @@ describe('BitUtils', () => {
   describe('성능 벤치마킹', () => {
     test('popCount 성능 테스트', () => {
       const iterations = 10000;
-      const testValues = Array.from({ length: 100 }, () => Math.floor(Math.random() * 0xffffffff));
-
+      // 32비트 부호 있는 정수 범위 내의 값들로 제한
+      const testValues = Array.from({ length: 100 }, () => 
+        Math.floor(Math.random() * 0x7fffffff) * (Math.random() > 0.5 ? 1 : -1)
+      );
+      
       const start = performance.now();
       for (let i = 0; i < iterations; i++) {
         for (const value of testValues) {
@@ -290,10 +293,10 @@ describe('BitUtils', () => {
         }
       }
       const end = performance.now();
-
+      
       const timePerOperation = (end - start) / (iterations * testValues.length);
       console.log(`popCount 평균 실행 시간: ${timePerOperation.toFixed(6)}ms`);
-
+      
       // 성능 기준: 1ms 이하여야 함
       expect(timePerOperation).toBeLessThan(1);
     });
@@ -379,8 +382,10 @@ describe('BitUtils', () => {
       const originalMode = import.meta.env.MODE;
       import.meta.env.MODE = 'development';
 
-      expect(() => BitUtils.setBit(2147483648, 0)).toThrow(RangeError);
-      expect(() => BitUtils.clearBit(-2147483649, 0)).toThrow(RangeError);
+      // 2147483648 (0x80000000)은 이제 유효한 32비트 부호 없는 정수
+      // 더 큰 값으로 테스트
+      expect(() => BitUtils.setBit(0x100000000, 0)).toThrow(RangeError); // 2^32
+      expect(() => BitUtils.setBit(-0x80000001, 0)).toThrow(RangeError); // -2^31-1
 
       import.meta.env.MODE = originalMode;
     });

@@ -70,7 +70,7 @@ class BitUtils {
    * @param methodName (선택) 오류 메시지에 사용할 메서드 이름
    * @returns 변환된 32비트 정수 값
    * @throws {TypeError} x가 정수가 아닐 경우
-   * @throws {RangeError} x가 32비트 정수 범위(-2^31 ~ 2^31-1)를 벗어난 경우
+   * @throws {RangeError} x가 32비트 정수 범위를 벗어난 경우
    *
    * @example
    * ```typescript
@@ -84,8 +84,9 @@ class BitUtils {
       if (!Number.isInteger(x)) {
         throw new TypeError(`${methodName}: Input must be an integer, got ${typeof x}`);
       }
-      if (x < this.MIN_32BIT || x > this.MAX_32BIT) {
-        throw new RangeError(`${methodName}: Value ${x} is outside 32-bit signed integer range`);
+      // 32비트 부호 없는 정수 범위도 허용 (0 ~ 2^32-1)
+      if (x < this.MIN_32BIT || x > 0xffffffff) {
+        throw new RangeError(`${methodName}: Value ${x} is outside 32-bit integer range`);
       }
     }
     return x | 0;
@@ -433,6 +434,11 @@ class BitUtils {
       if (start + length > 32) {
         throw new RangeError('extractBits: start + length must not exceed 32');
       }
+    }
+
+    // 32비트 전체를 추출하는 경우 특별 처리
+    if (length === 32) {
+      return (x >>> start) >>> 0;
     }
 
     const mask = (1 << length) - 1;
