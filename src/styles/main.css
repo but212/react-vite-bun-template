@@ -4,5 +4,6 @@
 @import 'tailwindcss/preflight.css' layer(base);
 @import 'tailwindcss/utilities.css' layer(utilities);
 
-/* Project globals (variables, a11y) */
-@import './common/index.css';
+@import './common/_variables.css' layer(theme);
+@import './common/_a11y.css' layer(utilities);
+@import './common/_animation.css' layer(utilities);
