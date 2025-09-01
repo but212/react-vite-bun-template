@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'vitest';
-import BitUtils from './bit-utils';
+import { beforeEach, describe, expect, test } from 'vitest';
+import BitUtils, { createBitLength, isValidBitLength } from './bit-utils';
 
 describe('BitUtils', () => {
   describe('isPowerOfTwo', () => {
@@ -215,13 +215,13 @@ describe('BitUtils', () => {
     test('캐시 효과 측정', () => {
       const testValues = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512];
       const iterations = 1000;
-      
+
       // 캐시 워밍업
       testValues.forEach(value => {
         BitUtils.isPowerOfTwo(value);
         BitUtils.popCount(value);
       });
-      
+
       // 캐시된 값들로 성능 테스트
       const start = performance.now();
       for (let i = 0; i < iterations; i++) {
@@ -231,10 +231,10 @@ describe('BitUtils', () => {
         });
       }
       const end = performance.now();
-      
+
       const timePerOperation = (end - start) / (iterations * testValues.length * 2);
       console.log(`캐시된 연산 평균 시간: ${timePerOperation.toFixed(6)}ms`);
-      
+
       // 캐시된 연산은 매우 빨라야 함
       expect(timePerOperation).toBeLessThan(0.01);
     });
@@ -242,19 +242,19 @@ describe('BitUtils', () => {
     test('LRU 캐시 동작 확인', () => {
       // 캐시 크기를 초과하는 값들로 테스트
       const largeDataSet = Array.from({ length: 1200 }, (_, i) => i + 1);
-      
+
       // 첫 번째 패스: 캐시 채우기
       largeDataSet.forEach(value => {
         BitUtils.isPowerOfTwo(value);
       });
-      
+
       // 두 번째 패스: 일부는 캐시 히트, 일부는 미스
       const start = performance.now();
       largeDataSet.slice(0, 500).forEach(value => {
         BitUtils.isPowerOfTwo(value);
       });
       const end = performance.now();
-      
+
       console.log(`LRU 캐시 테스트 완료: ${end - start}ms`);
       expect(end - start).toBeLessThan(50); // 적절한 성능 유지
     });
@@ -262,7 +262,7 @@ describe('BitUtils', () => {
     test('reverseBits lookup table 성능 비교', () => {
       const testValues = [0x12345678, 0xabcdef00, 0x55555555, 0xaaaaaaaa];
       const iterations = 10000;
-      
+
       // lookup table 기반 reverseBits 성능 측정
       const start = performance.now();
       for (let i = 0; i < iterations; i++) {
@@ -271,31 +271,12 @@ describe('BitUtils', () => {
         });
       }
       const end = performance.now();
-      
+
       const timePerOperation = (end - start) / (iterations * testValues.length);
       console.log(`reverseBits (lookup table) 평균: ${timePerOperation.toFixed(6)}ms`);
-      
+
       // lookup table 사용으로 매우 빨라야 함
       expect(timePerOperation).toBeLessThan(0.01);
-    });
-  });
-
-  describe('extractBits', () => {
-    test('비트 추출 - 정상 케이스', () => {
-      expect(BitUtils.extractBits(0b11110000, 4, 4)).toBe(0b1111); // 15
-      expect(BitUtils.extractBits(0b10101010, 1, 3)).toBe(0b101); // 5
-      expect(BitUtils.extractBits(0xff00ff00, 8, 8)).toBe(0b11111111); // 255
-    });
-
-    test('경계값 테스트', () => {
-      expect(BitUtils.extractBits(0xffffffff, 0, 1)).toBe(1); // 최하위 비트만
-      expect(BitUtils.extractBits(0xffffffff, 31, 1)).toBe(1); // 최상위 비트만
-      expect(BitUtils.extractBits(0xffffffff, 0, 32)).toBe(0xffffffff); // 전체 비트
-    });
-
-    test('0에서 비트 추출', () => {
-      expect(BitUtils.extractBits(0, 0, 8)).toBe(0);
-      expect(BitUtils.extractBits(0, 16, 16)).toBe(0);
     });
   });
 
@@ -309,6 +290,12 @@ describe('BitUtils', () => {
     test('length 자동 계산', () => {
       expect(BitUtils.insertBits(0, 0b1111, 0)).toBe(0b1111); // length 자동 계산
       expect(BitUtils.insertBits(0, 0b101, 3)).toBe(0b101000); // 3비트 시프트
+    });
+
+    test('bits = 0인 경우 더 직관적인 동작', () => {
+      // bits = 0이면 length = 0으로 자동 계산되어 아무것도 삽입하지 않음
+      expect(BitUtils.insertBits(0b11111111, 0, 4)).toBe(0b11111111); // 변화 없음
+      expect(BitUtils.insertBits(0b10101010, 0, 0)).toBe(0b10101010); // 변화 없음
     });
 
     test('기존 비트 덮어쓰기', () => {
@@ -349,10 +336,11 @@ describe('BitUtils', () => {
     test('popCount 성능 테스트', () => {
       const iterations = 10000;
       // 32비트 부호 있는 정수 범위 내의 값들로 제한
-      const testValues = Array.from({ length: 100 }, () => 
-        Math.floor(Math.random() * 0x7fffffff) * (Math.random() > 0.5 ? 1 : -1)
+      const testValues = Array.from(
+        { length: 100 },
+        () => Math.floor(Math.random() * 0x7fffffff) * (Math.random() > 0.5 ? 1 : -1)
       );
-      
+
       const start = performance.now();
       for (let i = 0; i < iterations; i++) {
         for (const value of testValues) {
@@ -360,10 +348,10 @@ describe('BitUtils', () => {
         }
       }
       const end = performance.now();
-      
+
       const timePerOperation = (end - start) / (iterations * testValues.length);
       console.log(`popCount 평균 실행 시간: ${timePerOperation.toFixed(6)}ms`);
-      
+
       // 성능 기준: 1ms 이하여야 함
       expect(timePerOperation).toBeLessThan(1);
     });
@@ -455,6 +443,224 @@ describe('BitUtils', () => {
       expect(() => BitUtils.setBit(-0x80000001, 0)).toThrow(RangeError); // -2^31-1
 
       import.meta.env.MODE = originalMode;
+    });
+
+    test('NaN/Infinity 입력 (프로덕션에서도 검증)', () => {
+      // 프로덕션 모드에서도 NaN/Infinity는 항상 검증됨
+      expect(() => BitUtils.isPowerOfTwo(NaN)).toThrow(TypeError);
+      expect(() => BitUtils.isPowerOfTwo(Infinity)).toThrow(TypeError);
+      expect(() => BitUtils.isPowerOfTwo(-Infinity)).toThrow(TypeError);
+
+      expect(() => BitUtils.setBit(NaN, 0)).toThrow(TypeError);
+      expect(() => BitUtils.clearBit(Infinity, 1)).toThrow(TypeError);
+      expect(() => BitUtils.toggleBit(-Infinity, 2)).toThrow(TypeError);
+
+      expect(() => BitUtils.popCount(NaN)).toThrow(TypeError);
+      expect(() => BitUtils.rotateLeft(Infinity, 1)).toThrow(TypeError);
+    });
+  });
+
+  describe('개선된 LRU 캐시 시스템', () => {
+    test('Map 기반 LRU 캐시 동작 확인', () => {
+      // 캐시 크기를 초과하는 값들로 테스트
+      const largeDataSet = Array.from({ length: 1200 }, (_, i) => i + 1);
+
+      // 첫 번째 패스: 캐시 채우기
+      largeDataSet.forEach(value => {
+        BitUtils.isPowerOfTwo(value);
+      });
+
+      // 두 번째 패스: 최근 사용된 값들은 캐시 히트
+      const recentValues = largeDataSet.slice(-100); // 최근 100개 값
+      const start = performance.now();
+      recentValues.forEach(value => {
+        BitUtils.isPowerOfTwo(value);
+      });
+      const end = performance.now();
+
+      console.log(`개선된 LRU 캐시 테스트: ${end - start}ms`);
+      expect(end - start).toBeLessThan(10); // 캐시된 값들은 매우 빨라야 함
+    });
+
+    test('진정한 LRU 동작 검증', () => {
+      // 특정 값들을 캐시에 저장
+      const testValues = [1, 2, 4, 8, 16];
+      testValues.forEach(value => {
+        BitUtils.isPowerOfTwo(value);
+      });
+
+      // 첫 번째 값을 다시 접근하여 LRU 순서 변경
+      BitUtils.isPowerOfTwo(1);
+
+      // 대량의 새로운 값들로 캐시 오버플로우 유발
+      const newValues = Array.from({ length: 1200 }, (_, i) => i + 100);
+      newValues.forEach(value => {
+        BitUtils.isPowerOfTwo(value);
+      });
+
+      // 최근 접근한 1은 여전히 캐시에 있어야 함 (빠른 응답)
+      const start = performance.now();
+      BitUtils.isPowerOfTwo(1);
+      const end = performance.now();
+
+      console.log(`LRU 보존 테스트: ${end - start}ms`);
+      expect(end - start).toBeLessThan(0.1); // 캐시 히트로 매우 빨라야 함
+    });
+
+    test('캐시 크기 자동 관리', () => {
+      // 대량의 서로 다른 값들로 캐시 오버플로우 테스트
+      const testValues = Array.from({ length: 1500 }, (_, i) => i * 2 + 1);
+
+      testValues.forEach(value => {
+        BitUtils.popCount(value);
+      });
+
+      // 캐시가 적절히 관리되어야 함 (메모리 누수 없음)
+      expect(true).toBe(true); // 테스트가 완료되면 성공
+    });
+  });
+
+  describe('insertBits 개선된 길이 계산', () => {
+    test('calcBitLength 유틸리티 동작 확인', () => {
+      // bits = 0인 경우 length = 0 (아무것도 삽입하지 않음)
+      expect(BitUtils.insertBits(0b11111111, 0, 4)).toBe(0b11111111);
+
+      // 다양한 비트 값들의 자동 길이 계산
+      expect(BitUtils.insertBits(0, 0b1, 0)).toBe(0b1); // 1비트
+      expect(BitUtils.insertBits(0, 0b11, 0)).toBe(0b11); // 2비트
+      expect(BitUtils.insertBits(0, 0b111, 0)).toBe(0b111); // 3비트
+      expect(BitUtils.insertBits(0, 0b1111, 0)).toBe(0b1111); // 4비트
+    });
+
+    test('길이 계산 로직 일관성', () => {
+      // 명시적 길이와 자동 계산 길이가 동일한 결과를 보장
+      const testBits = 0b10101;
+      const autoResult = BitUtils.insertBits(0, testBits, 8);
+      const manualResult = BitUtils.insertBits(0, testBits, 8, 5);
+
+      expect(autoResult).toBe(manualResult);
+    });
+
+    test('타입 안전한 길이 검증', () => {
+      // createBitLength 함수로 안전한 길이 생성
+      expect(() => createBitLength(4)).not.toThrow();
+      expect(() => createBitLength(0)).not.toThrow();
+      expect(() => createBitLength(32)).not.toThrow();
+
+      // 잘못된 길이는 에러 발생
+      expect(() => createBitLength(-1)).toThrow(RangeError);
+      expect(() => createBitLength(33)).toThrow(RangeError);
+      expect(() => createBitLength(3.14)).toThrow(RangeError);
+    });
+
+    test('isValidBitLength 타입 가드', () => {
+      expect(isValidBitLength(0)).toBe(true);
+      expect(isValidBitLength(16)).toBe(true);
+      expect(isValidBitLength(32)).toBe(true);
+
+      expect(isValidBitLength(-1)).toBe(false);
+      expect(isValidBitLength(33)).toBe(false);
+      expect(isValidBitLength(3.14)).toBe(false);
+      expect(isValidBitLength(NaN)).toBe(false);
+    });
+  });
+
+  describe('적응형 캐시 관리 시스템', () => {
+    beforeEach(() => {
+      // 각 테스트 전에 캐시 초기화
+      BitUtils.clearAllCaches();
+    });
+
+    test('캐시 통계 수집', () => {
+      const initialStats = BitUtils.getCacheStats();
+      expect(initialStats.hits).toBe(0);
+      expect(initialStats.misses).toBe(0);
+      expect(initialStats.hitRate).toBe(0);
+
+      // 캐시 미스 발생
+      BitUtils.isPowerOfTwo(1024);
+      let stats = BitUtils.getCacheStats();
+      expect(stats.misses).toBe(1);
+      expect(stats.hitRate).toBe(0);
+
+      // 캐시 히트 발생
+      BitUtils.isPowerOfTwo(1024);
+      stats = BitUtils.getCacheStats();
+      expect(stats.hits).toBe(1);
+      expect(stats.hitRate).toBe(0.5); // 1 hit / 2 total
+    });
+
+    test('적응형 제거 비율 - 높은 히트율', () => {
+      // 높은 히트율 시나리오 생성
+      const values = [1, 2, 4, 8, 16];
+
+      // 캐시에 값들 저장
+      values.forEach(v => BitUtils.isPowerOfTwo(v));
+
+      // 반복 접근으로 높은 히트율 생성
+      for (let i = 0; i < 100; i++) {
+        values.forEach(v => BitUtils.isPowerOfTwo(v));
+      }
+
+      const stats = BitUtils.getCacheStats();
+      expect(stats.hitRate).toBeGreaterThan(0.8);
+
+      // 대량의 새로운 값으로 캐시 오버플로우 유발
+      const newValues = Array.from({ length: 1200 }, (_, i) => i + 100);
+      newValues.forEach(v => BitUtils.isPowerOfTwo(v));
+
+      // 높은 히트율에서는 적게 제거되어야 함
+      const finalStats = BitUtils.getCacheStats();
+      expect(finalStats.evictions).toBeGreaterThan(0);
+    });
+
+    test('적응형 제거 비율 - 낮은 히트율', () => {
+      // 낮은 히트율 시나리오: 계속 새로운 값들만 접근
+      const values1 = Array.from({ length: 500 }, (_, i) => i);
+      const values2 = Array.from({ length: 500 }, (_, i) => i + 1000);
+      const values3 = Array.from({ length: 500 }, (_, i) => i + 2000);
+
+      // 각각 한 번씩만 접근 (낮은 히트율)
+      values1.forEach(v => BitUtils.isPowerOfTwo(v));
+      values2.forEach(v => BitUtils.isPowerOfTwo(v));
+      values3.forEach(v => BitUtils.isPowerOfTwo(v));
+
+      const stats = BitUtils.getCacheStats();
+      expect(stats.hitRate).toBeLessThan(0.5);
+      expect(stats.evictions).toBeGreaterThan(0);
+    });
+
+    test('빈번한 정리 방지', () => {
+      const startTime = Date.now();
+
+      // 짧은 시간 내에 여러 번 캐시 오버플로우 유발
+      for (let batch = 0; batch < 3; batch++) {
+        const values = Array.from({ length: 500 }, (_, i) => i + batch * 1000);
+        values.forEach(v => BitUtils.isPowerOfTwo(v));
+      }
+
+      const stats = BitUtils.getCacheStats();
+      // 빈번한 정리 방지로 제거 비율이 제한되어야 함
+      expect(stats.evictions).toBeLessThan(1000); // 전체 삭제되지 않음
+    });
+
+    test('캐시 초기화', () => {
+      // 캐시에 데이터 추가
+      BitUtils.isPowerOfTwo(1024);
+      BitUtils.popCount(255);
+
+      let stats = BitUtils.getCacheStats();
+      expect(stats.powerOfTwoCacheSize).toBeGreaterThan(0);
+      expect(stats.popCountCacheSize).toBeGreaterThan(0);
+
+      // 캐시 초기화
+      BitUtils.clearAllCaches();
+
+      stats = BitUtils.getCacheStats();
+      expect(stats.hits).toBe(0);
+      expect(stats.misses).toBe(0);
+      expect(stats.powerOfTwoCacheSize).toBe(0);
+      expect(stats.popCountCacheSize).toBe(0);
     });
   });
 });

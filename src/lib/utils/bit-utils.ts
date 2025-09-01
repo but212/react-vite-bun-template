@@ -11,6 +11,47 @@ export type BitPosition =
   | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31;
 
 /**
+ * 1~32까지의 비트 길이를 나타내는 타입입니다.
+ * @remarks
+ * 비트 연산에서 사용되는 유효한 길이 값을 엄격하게 제한합니다.
+ */
+export type BitLength = 
+  | 1  | 2  | 3  | 4  | 5  | 6  | 7  | 8
+  | 9  | 10 | 11 | 12 | 13 | 14 | 15 | 16
+  | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24
+  | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32;
+
+/**
+ * 0~32까지의 비트 길이를 나타내는 브랜드 타입입니다.
+ * @remarks
+ * 브랜드 타입을 사용하여 컴파일 타임에 더 강력한 타입 검증을 제공합니다.
+ * 런타임 에러 대신 TypeScript 컴파일 에러로 잘못된 값을 사전에 차단합니다.
+ */
+export type BitLengthWithZero = 0 | BitLength;
+
+/**
+ * 비트 길이 값이 유효한지 컴파일 타임에 검증하는 타입 가드입니다.
+ * @param length 검증할 길이 값
+ * @returns 유효한 BitLengthWithZero인지 여부
+ */
+export function isValidBitLength(length: number): length is BitLengthWithZero {
+  return Number.isInteger(length) && length >= 0 && length <= 32;
+}
+
+/**
+ * 안전한 비트 길이 생성 함수입니다.
+ * @param length 길이 값
+ * @returns 검증된 BitLengthWithZero 또는 에러
+ * @throws {RangeError} 유효하지 않은 길이인 경우
+ */
+export function createBitLength(length: number): BitLengthWithZero {
+  if (!isValidBitLength(length)) {
+    throw new RangeError(`Invalid bit length: ${length}. Must be 0-32.`);
+  }
+  return length;
+}
+
+/**
  * 1~31까지의 회전 위치를 나타내는 타입입니다.
  * @remarks
  * 회전 연산에서 0은 의미가 없으므로 제외하고, 1~31만 허용합니다.
@@ -50,87 +91,87 @@ class BitUtils {
   // 성능 최적화를 위한 LRU 캐시
   private static readonly POWER_OF_TWO_CACHE = new Map<number, boolean>();
   private static readonly POPCOUNT_CACHE = new Map<number, number>();
-  private static readonly CACHE_ACCESS_ORDER = new Map<string, number>();
 
   /** 캐시 크기 제한 (메모리 사용량 제어) */
   private static readonly MAX_CACHE_SIZE = 1000;
-
-  /** 캐시 정리 주기 (접근 횟수 기준) */
-  private static readonly CACHE_CLEANUP_THRESHOLD = 1500;
-  private static cacheAccessCount = 0;
-
-  // reverseBits 최적화를 위한 8비트 lookup table
-  private static readonly REVERSE_LOOKUP = new Uint8Array(256);
-  private static isLookupInitialized = false;
+  
+  /** 적응형 캐시 관리를 위한 통계 */
+  private static cacheStats = {
+    hits: 0,
+    misses: 0,
+    evictions: 0,
+    lastCleanup: Date.now()
+  };
 
   /**
-   * 8비트 역순 lookup table을 초기화합니다.
+   * 워크로드 패턴에 따른 적응형 캐시 관리
    * @private
    */
-  private static initializeReverseLookup(): void {
-    if (this.isLookupInitialized) return;
+  private static maintainCacheSize<T>(cache: Map<number, T>): void {
+    if (cache.size <= this.MAX_CACHE_SIZE) return;
 
-    for (let i = 0; i < 256; i++) {
-      let reversed = 0;
-      let value = i;
-      for (let bit = 0; bit < 8; bit++) {
-        reversed = (reversed << 1) | (value & 1);
-        value >>>= 1;
-      }
-      this.REVERSE_LOOKUP[i] = reversed;
+    const now = Date.now();
+    const timeSinceLastCleanup = now - this.cacheStats.lastCleanup;
+    const hitRate = this.cacheStats.hits / (this.cacheStats.hits + this.cacheStats.misses);
+
+    // 적응형 제거 비율: 히트율이 높으면 적게, 낮으면 많이 제거
+    let removalRatio = 0.3; // 기본 30%
+    if (hitRate > 0.8) {
+      removalRatio = 0.2; // 히트율 높음: 20%만 제거
+    } else if (hitRate < 0.5) {
+      removalRatio = 0.4; // 히트율 낮음: 40% 제거
     }
-    this.isLookupInitialized = true;
+
+    // 빈번한 정리 방지: 최소 간격 유지
+    if (timeSinceLastCleanup < 1000) { // 1초 미만이면
+      removalRatio = Math.min(removalRatio, 0.1); // 최대 10%만 제거
+    }
+
+    const entriesToRemove = Math.floor(cache.size * removalRatio);
+    const keysToRemove = Array.from(cache.keys()).slice(0, entriesToRemove);
+    
+    for (const key of keysToRemove) {
+      cache.delete(key);
+    }
+
+    this.cacheStats.evictions += entriesToRemove;
+    this.cacheStats.lastCleanup = now;
   }
 
   /**
-   * LRU 방식으로 오래된 캐시 엔트리들을 정리합니다.
+   * 캐시에서 값을 가져오고 LRU 순서를 업데이트합니다.
    * @private
+   * @remarks
+   * Map의 delete/set 조합으로 진정한 LRU 구현:
+   * - 접근된 항목을 맨 뒤로 이동 (가장 최근 사용)
+   * - 가장 앞쪽 항목들이 가장 오래된 항목 (LRU 후보)
    */
-  private static clearOldCacheEntries(): void {
-    if (this.POWER_OF_TWO_CACHE.size <= this.MAX_CACHE_SIZE && this.POPCOUNT_CACHE.size <= this.MAX_CACHE_SIZE) {
-      return;
+  private static getCachedValue<T>(cache: Map<number, T>, key: number): T | undefined {
+    const value = cache.get(key);
+    if (value !== undefined) {
+      // 진정한 LRU: 접근 시 항목을 맨 뒤로 이동
+      cache.delete(key);
+      cache.set(key, value);
+      this.cacheStats.hits++;
+    } else {
+      this.cacheStats.misses++;
     }
-
-    // 접근 순서 기반으로 오래된 엔트리 제거
-    const sortedEntries = Array.from(this.CACHE_ACCESS_ORDER.entries())
-      .sort((a, b) => a[1] - b[1]); // 접근 시간 순 정렬
-
-    const entriesToRemove = Math.floor(this.MAX_CACHE_SIZE * 0.3); // 30% 제거
-
-    for (let i = 0; i < entriesToRemove && i < sortedEntries.length; i++) {
-      const entry = sortedEntries[i];
-      if (!entry) continue; // undefined 체크
-
-      const [key] = entry;
-      const [cacheType, value] = key.split(':');
-      const numValue = parseInt(value ?? '', 10);
-
-      // NaN 체크 추가 - 잘못된 키 형식 방어
-      if (isNaN(numValue)) continue;
-
-      if (cacheType === 'pow2') {
-        this.POWER_OF_TWO_CACHE.delete(numValue);
-      } else if (cacheType === 'popcount') {
-        this.POPCOUNT_CACHE.delete(numValue);
-      }
-
-      this.CACHE_ACCESS_ORDER.delete(key);
-    }
+    return value;
   }
 
   /**
-   * 캐시 접근을 기록하고 필요시 정리를 수행합니다.
+   * 캐시에 값을 저장하고 크기를 관리합니다.
    * @private
+   * @remarks
+   * 새로운 항목은 자동으로 맨 뒤에 추가되어 가장 최근 사용된 것으로 간주됩니다.
    */
-  private static recordCacheAccess(cacheType: 'pow2' | 'popcount', value: number): void {
-    this.cacheAccessCount++;
-    const key = `${cacheType}:${value}`;
-    this.CACHE_ACCESS_ORDER.set(key, this.cacheAccessCount);
-
-    // 주기적으로 캐시 정리
-    if (this.cacheAccessCount % this.CACHE_CLEANUP_THRESHOLD === 0) {
-      this.clearOldCacheEntries();
+  private static setCachedValue<T>(cache: Map<number, T>, key: number, value: T): void {
+    // 이미 존재하는 키라면 먼저 제거 (순서 업데이트)
+    if (cache.has(key)) {
+      cache.delete(key);
     }
+    cache.set(key, value);
+    this.maintainCacheSize(cache);
   }
 
   /**
@@ -159,6 +200,11 @@ class BitUtils {
    * ```
    */
   private static validate32Bit(x: number, methodName: string = 'BitUtils'): number {
+    // 프로덕션에서도 NaN/Infinity 체크 (최소한의 안전성)
+    if (!Number.isFinite(x)) {
+      throw new TypeError(`${methodName}: Input must be a finite number, got ${x}`);
+    }
+
     if (this.shouldValidate()) {
       if (!Number.isInteger(x)) {
         throw new TypeError(`${methodName}: Input must be an integer, got ${typeof x}`);
@@ -168,7 +214,7 @@ class BitUtils {
         throw new RangeError(`${methodName}: Value ${x} is outside 32-bit integer range`);
       }
     }
-    return x | 0;
+    return x >>> 0; // 항상 부호 없는 32비트로 변환
   }
 
   // ===== 기본 비트 조작 =====
@@ -200,23 +246,18 @@ class BitUtils {
     }
 
     // 캐시 확인
-    if (this.POWER_OF_TWO_CACHE.has(n)) {
-      this.recordCacheAccess('pow2', n);
-      return this.POWER_OF_TWO_CACHE.get(n)!;
+    const cachedValue = this.getCachedValue(this.POWER_OF_TWO_CACHE, n);
+    if (cachedValue !== undefined) {
+      return cachedValue;
     }
 
     const result = n > 0 && (n & (n - 1)) === 0;
 
     // 캐시에 저장
-    if (this.POWER_OF_TWO_CACHE.size < this.MAX_CACHE_SIZE) {
-      this.POWER_OF_TWO_CACHE.set(n, result);
-      this.recordCacheAccess('pow2', n);
-    }
+    this.setCachedValue(this.POWER_OF_TWO_CACHE, n, result);
 
     return result;
   }
-
-  // ===== 비트 위치 조작 =====
 
   /**
    * 주어진 32비트 정수 `x`에서 지정한 비트 위치 `position`의 비트를 1로 설정합니다.
@@ -236,9 +277,7 @@ class BitUtils {
    * ```
    */
   static setBit(x: number, position: BitPosition): number {
-    if (this.shouldValidate()) {
-      x = this.validate32Bit(x, 'setBit');
-    }
+    x = this.validate32Bit(x, 'setBit');
     return (x | (1 << position)) >>> 0;
   }
 
@@ -259,9 +298,7 @@ class BitUtils {
    * ```
    */
   static clearBit(x: number, position: BitPosition): number {
-    if (this.shouldValidate()) {
-      x = this.validate32Bit(x, 'clearBit');
-    }
+    x = this.validate32Bit(x, 'clearBit');
     return (x & ~(1 << position)) >>> 0;
   }
 
@@ -282,9 +319,7 @@ class BitUtils {
    * ```
    */
   static toggleBit(x: number, position: BitPosition): number {
-    if (this.shouldValidate()) {
-      x = this.validate32Bit(x, 'toggleBit');
-    }
+    x = this.validate32Bit(x, 'toggleBit');
     return (x ^ (1 << position)) >>> 0;
   }
 
@@ -306,9 +341,7 @@ class BitUtils {
    * ```
    */
   static testBit(x: number, position: BitPosition): boolean {
-    if (this.shouldValidate()) {
-      x = this.validate32Bit(x, 'testBit');
-    }
+    x = this.validate32Bit(x, 'testBit');
     return (x & (1 << position)) !== 0;
   }
 
@@ -337,9 +370,7 @@ class BitUtils {
    * ```
    */
   static rotateLeft(x: number, positions: RotationPosition): number {
-    if (this.shouldValidate()) {
-      x = this.validate32Bit(x, 'rotateLeft');
-    }
+    x = this.validate32Bit(x, 'rotateLeft');
     return ((x << positions) | (x >>> (32 - positions))) >>> 0;
   }
 
@@ -366,9 +397,7 @@ class BitUtils {
    * ```
    */
   static rotateRight(x: number, positions: RotationPosition): number {
-    if (this.shouldValidate()) {
-      x = this.validate32Bit(x, 'rotateRight');
-    }
+    x = this.validate32Bit(x, 'rotateRight');
     return ((x >>> positions) | (x << (32 - positions))) >>> 0;
   }
 
@@ -399,16 +428,14 @@ class BitUtils {
    * ```
    */
   static popCount(x: number): number {
-    if (this.shouldValidate()) {
-      x = this.validate32Bit(x, 'popCount');
-    }
+    x = this.validate32Bit(x, 'popCount');
 
     const unsignedX = x >>> 0;
 
     // 캐시 확인
-    if (this.POPCOUNT_CACHE.has(unsignedX)) {
-      this.recordCacheAccess('popcount', unsignedX);
-      return this.POPCOUNT_CACHE.get(unsignedX)!;
+    const cachedValue = this.getCachedValue(this.POPCOUNT_CACHE, unsignedX);
+    if (cachedValue !== undefined) {
+      return cachedValue;
     }
 
     let count = 0;
@@ -419,10 +446,7 @@ class BitUtils {
     }
 
     // 캐시에 저장
-    if (this.POPCOUNT_CACHE.size < this.MAX_CACHE_SIZE) {
-      this.POPCOUNT_CACHE.set(unsignedX, count);
-      this.recordCacheAccess('popcount', unsignedX);
-    }
+    this.setCachedValue(this.POPCOUNT_CACHE, unsignedX, count);
 
     return count;
   }
@@ -449,9 +473,7 @@ class BitUtils {
    * ```
    */
   static countLeadingZeros(x: number): number {
-    if (this.shouldValidate()) {
-      x = this.validate32Bit(x, 'countLeadingZeros');
-    }
+    x = this.validate32Bit(x, 'countLeadingZeros');
     return Math.clz32(x);
   }
 
@@ -477,14 +499,28 @@ class BitUtils {
    * ```
    */
   static countTrailingZeros(x: number): number {
-    if (this.shouldValidate()) {
-      x = this.validate32Bit(x, 'countTrailingZeros');
-    }
+    x = this.validate32Bit(x, 'countTrailingZeros');
     if (x === 0) return 32;
     return 31 - Math.clz32(x & -x);
   }
 
   // ===== 새로운 비트 조작 메서드 =====
+
+  /**
+   * 주어진 비트 값의 유효 비트 길이를 계산합니다.
+   * @private
+   * @param bits 길이를 계산할 비트 값
+   * @returns 유효 비트 길이 (0~32)
+   * @remarks
+   * - bits가 0이면 0을 반환 (아무것도 삽입하지 않음)
+   * - 그 외의 경우 Math.clz32를 사용하여 효율적으로 계산
+   */
+  private static calcBitLength(bits: number): BitLengthWithZero {
+    if (bits === 0) {
+      return 0;
+    }
+    return (32 - Math.clz32(bits)) as BitLengthWithZero;
+  }
 
   /**
    * 주어진 32비트 정수에서 지정된 위치와 길이의 비트들을 추출합니다.
@@ -508,15 +544,10 @@ class BitUtils {
    * BitUtils.extractBits(0xff00ff00, 8, 8); // 255 (0b11111111)
    * ```
    */
-  static extractBits(x: number, start: BitPosition, length: number): number {
-    if (this.shouldValidate()) {
-      x = this.validate32Bit(x, 'extractBits');
-      if (!Number.isInteger(length) || length < 1 || length > 32) {
-        throw new RangeError('extractBits: length must be between 1 and 32');
-      }
-      if (start + length > 32) {
-        throw new RangeError('extractBits: start + length must not exceed 32');
-      }
+  static extractBits(x: number, start: BitPosition, length: BitLength): number {
+    x = this.validate32Bit(x, 'extractBits');
+    if (start + length > 32) {
+      throw new RangeError('extractBits: start + length must not exceed 32');
     }
 
     // 32비트 전체를 추출하는 경우 특별 처리
@@ -543,32 +574,40 @@ class BitUtils {
    * @remarks
    * - 기존 위치의 비트들은 삽입되는 비트들로 덮어씌워집니다.
    * - length를 지정하지 않으면 bits의 유효 비트 수를 자동 계산합니다.
+   * - 타입 안전성을 위해 length는 컴파일 타임에 검증됩니다.
    *
    * @example
    * ```typescript
    * BitUtils.insertBits(0, 0b1111, 4, 4);     // 240 (0b11110000)
    * BitUtils.insertBits(0b11110000, 0b101, 1, 3); // 234 (0b11101010)
    * BitUtils.insertBits(0xff00ff00, 0b1010, 4, 4); // 0xff00ffa0
+   * 
+   * // 타입 안전한 길이 사용
+   * const safeLength = createBitLength(4);
+   * BitUtils.insertBits(0, 0b1111, 4, safeLength); // 컴파일 타임 안전
    * ```
    */
-  static insertBits(x: number, bits: number, start: BitPosition, length?: number): number {
-    if (this.shouldValidate()) {
-      x = this.validate32Bit(x, 'insertBits');
-      bits = this.validate32Bit(bits, 'insertBits');
-    }
+  static insertBits(x: number, bits: number, start: BitPosition, length?: BitLengthWithZero): number {
+    x = this.validate32Bit(x, 'insertBits');
+    bits = this.validate32Bit(bits, 'insertBits');
 
     // length가 지정되지 않으면 bits의 유효 비트 수 계산
     if (length === undefined) {
-      length = bits === 0 ? 1 : 32 - Math.clz32(bits);
+      length = this.calcBitLength(bits);
     }
 
-    if (this.shouldValidate()) {
-      if (!Number.isInteger(length) || length < 1 || length > 32) {
-        throw new RangeError('insertBits: length must be between 1 and 32');
-      }
-      if (start + length > 32) {
-        throw new RangeError('insertBits: start + length must not exceed 32');
-      }
+    // 런타임에서도 타입 안전성 보장
+    if (!isValidBitLength(length)) {
+      throw new RangeError(`insertBits: Invalid length ${length}. Use createBitLength() for type-safe values.`);
+    }
+    
+    if (start + length > 32) {
+      throw new RangeError('insertBits: start + length must not exceed 32');
+    }
+
+    // length가 0이면 아무것도 삽입하지 않음
+    if (length === 0) {
+      return x >>> 0;
     }
 
     const mask = ((1 << length) - 1) << start;
@@ -597,11 +636,9 @@ class BitUtils {
    * ```
    */
   static reverseBits(x: number): number {
-    if (this.shouldValidate()) {
-      x = this.validate32Bit(x, 'reverseBits');
-    }
+    x = this.validate32Bit(x, 'reverseBits');
 
-    // lookup table 초기화
+    // reverseBits 최적화를 위한 8비트 lookup table
     this.initializeReverseLookup();
 
     const unsignedX = x >>> 0;
@@ -614,6 +651,29 @@ class BitUtils {
 
     // 바이트 순서를 뒤집어서 조합
     return ((byte0 << 24) | (byte1 << 16) | (byte2 << 8) | byte3) >>> 0;
+  }
+
+  // reverseBits 최적화를 위한 8비트 lookup table
+  private static readonly REVERSE_LOOKUP = new Uint8Array(256);
+  private static isLookupInitialized = false;
+
+  /**
+   * 8비트 역순 lookup table을 초기화합니다.
+   * @private
+   */
+  private static initializeReverseLookup(): void {
+    if (this.isLookupInitialized) return;
+
+    for (let i = 0; i < 256; i++) {
+      let reversed = 0;
+      let value = i;
+      for (let bit = 0; bit < 8; bit++) {
+        reversed = (reversed << 1) | (value & 1);
+        value >>>= 1;
+      }
+      this.REVERSE_LOOKUP[i] = reversed;
+    }
+    this.isLookupInitialized = true;
   }
 
   // ===== 마스크 상수 =====
@@ -691,10 +751,8 @@ class BitUtils {
    * ```
    */
   static hasAllFlags(mask: number, flags: number): boolean {
-    if (this.shouldValidate()) {
-      mask = this.validate32Bit(mask, 'hasAllFlags');
-      flags = this.validate32Bit(flags, 'hasAllFlags');
-    }
+    mask = this.validate32Bit(mask, 'hasAllFlags');
+    flags = this.validate32Bit(flags, 'hasAllFlags');
     return (mask & flags) === flags;
   }
 
@@ -721,11 +779,47 @@ class BitUtils {
    * ```
    */
   static hasAnyFlag(mask: number, flags: number): boolean {
-    if (this.shouldValidate()) {
-      mask = this.validate32Bit(mask, 'hasAnyFlag');
-      flags = this.validate32Bit(flags, 'hasAnyFlag');
-    }
+    mask = this.validate32Bit(mask, 'hasAnyFlag');
+    flags = this.validate32Bit(flags, 'hasAnyFlag');
     return (mask & flags) !== 0;
+  }
+
+  /**
+   * 캐시 통계를 반환합니다.
+   * @returns 캐시 히트율, 미스 수, 히트 수, 제거 수 등의 통계
+   */
+  static getCacheStats(): {
+    hits: number;
+    misses: number;
+    hitRate: number;
+    evictions: number;
+    lastCleanup: number;
+    powerOfTwoCacheSize: number;
+    popCountCacheSize: number;
+  } {
+    const total = this.cacheStats.hits + this.cacheStats.misses;
+    return {
+      ...this.cacheStats,
+      hitRate: total > 0 ? this.cacheStats.hits / total : 0,
+      powerOfTwoCacheSize: this.POWER_OF_TWO_CACHE.size,
+      popCountCacheSize: this.POPCOUNT_CACHE.size
+    };
+  }
+
+  /**
+   * 모든 캐시를 초기화합니다.
+   * @remarks
+   * 테스트나 메모리 정리 목적으로 사용됩니다.
+   */
+  static clearAllCaches(): void {
+    this.POWER_OF_TWO_CACHE.clear();
+    this.POPCOUNT_CACHE.clear();
+    this.cacheStats = {
+      hits: 0,
+      misses: 0,
+      evictions: 0,
+      lastCleanup: Date.now()
+    };
   }
 }
 
