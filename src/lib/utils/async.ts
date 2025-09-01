@@ -13,7 +13,7 @@ export const sleep = (ms: number) => new Promise<void>(res => setTimeout(res, ms
  * @param wait 대기 시간(밀리초), 기본값 300ms
  * @returns 디바운스된 함수
  */
-export function debounce<T extends (...args: any[]) => void>(fn: T, wait = 300) {
+export function debounce<T extends (...args: unknown[]) => void>(fn: T, wait = 300) {
   let t: ReturnType<typeof setTimeout> | null = null;
   return (...args: Parameters<T>) => {
     if (t) clearTimeout(t);
@@ -27,7 +27,7 @@ export function debounce<T extends (...args: any[]) => void>(fn: T, wait = 300) 
  * @param wait 최소 대기 시간(밀리초), 기본값 300ms
  * @returns 스로틀된 함수
  */
-export function throttle<T extends (...args: any[]) => void>(fn: T, wait = 300) {
+export function throttle<T extends (...args: unknown[]) => void>(fn: T, wait = 300) {
   let last = 0;
   return (...args: Parameters<T>) => {
     const now = Date.now();
@@ -51,7 +51,7 @@ export async function retry<T>(fn: () => Promise<T>, times = 3, delay = 300): Pr
   for (let i = 0; i < times; i++) {
     try {
       return await fn();
-    } catch (e) {
+    } catch (e: unknown) {
       lastErr = e;
       if (i < times - 1) await sleep(delay);
     }

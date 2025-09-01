@@ -15,8 +15,10 @@ export const clamp = (v: number, min: number, max: number) => Math.min(Math.max(
  */
 export function pick<T extends object, K extends keyof T>(obj: T, keys: ReadonlyArray<K>): Pick<T, K> {
   const out = {} as Pick<T, K>;
-  keys.forEach(k => {
-    if (k in obj) out[k] = obj[k];
+  keys.forEach((k: K) => {
+    if (Object.prototype.hasOwnProperty.call(obj, k)) {
+      (out as Pick<T, K>)[k] = obj[k];
+    }
   });
   return out;
 }
@@ -28,10 +30,12 @@ export function pick<T extends object, K extends keyof T>(obj: T, keys: Readonly
  * @returns 지정된 키들이 제외된 새로운 객체
  */
 export function omit<T extends object, K extends keyof T>(obj: T, keys: ReadonlyArray<K>): Omit<T, K> {
-  const set = new Set<keyof T>(keys as ReadonlyArray<keyof T>);
+  const keySet = new Set<PropertyKey>(keys as ReadonlyArray<PropertyKey>);
   const out = {} as Omit<T, K>;
-  (Object.keys(obj) as Array<keyof T>).forEach(k => {
-    if (!set.has(k)) (out as any)[k] = (obj as any)[k];
-  });
+  for (const k in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, k) && !keySet.has(k)) {
+      (out as any)[k] = obj[k];
+    }
+  }
   return out;
 }
