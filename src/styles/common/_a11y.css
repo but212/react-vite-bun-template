@@ -1,3 +1,6 @@
+/* 접근성 유틸리티 스타일 */
+
+/* 스크린 리더 전용 텍스트 */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -10,6 +13,7 @@
   border: 0;
 }
 
+/* 스크린 리더 전용 텍스트가 포커스될 때 표시 */
 .sr-only:focus {
   position: static;
   width: auto;
@@ -21,11 +25,13 @@
   white-space: normal;
 }
 
+/* 포커스 표시 스타일 */
 .focus-visible {
   outline: 2px solid var(--color-gray-900);
   outline-offset: 2px;
 }
 
+/* 고대비 모드에서 더 명확한 포커스 표시 */
 @media (prefers-contrast: high) {
   .focus-visible {
     outline: 3px solid;
@@ -33,6 +39,7 @@
   }
 }
 
+/* 키보드 사용자를 위한 건너뛰기 링크 */
 .skip-link {
   position: absolute;
   top: -40px;
@@ -43,9 +50,31 @@
   text-decoration: none;
   border: 2px solid var(--color-gray-900);
   border-radius: var(--radius-md);
-  z-index: 9999;
+  z-index: var(--z-index-skiplink);
 }
 
+/* 건너뛰기 링크가 포커스될 때 표시 */
 .skip-link:focus {
   top: 6px;
+}
+
+/* 애니메이션을 선호하지 않는 사용자를 위한 설정 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 고대비 모드 지원 */
+@media (prefers-contrast: high) {
+  .skip-link {
+    border-width: 3px;
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
 }
