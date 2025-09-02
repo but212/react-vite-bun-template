@@ -15,7 +15,7 @@
 - `HOUR`: 3600000
 - `DAY`: 86400000
 
-**사용 예시**
+#### 사용 예시 - TIME
 
 ```typescript
 import { TIME } from '@/constants';
@@ -35,7 +35,7 @@ setTimeout(doSomething, TIME.SECOND * 5); // 5초 후 실행
 - `INTERNAL_SERVER_ERROR`: 500
 - ... 등
 
-**사용 예시**
+#### 사용 예시 - HTTP_STATUS
 
 ```typescript
 import { HTTP_STATUS } from '@/constants';
@@ -52,7 +52,7 @@ if (response.status === HTTP_STATUS.OK) {
 - `EMAIL`: 이메일 형식 검증
 - `URL`: URL 형식 검증
 
-**사용 예시**
+#### 사용 예시 - REGEX
 
 ```typescript
 import { REGEX } from '@/constants';
