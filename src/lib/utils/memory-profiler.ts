@@ -72,7 +72,7 @@ export class MemoryProfiler {
       return {
         used: Math.round(used * 100) / 100,
         total: Math.round(total * 100) / 100,
-        percentage: Math.round((used / total) * 10000) / 100,
+        percentage: total > 0 ? Math.round((used / total) * 10000) / 100 : 0,
         timestamp: Date.now(),
       };
     } else if (typeof process !== 'undefined' && process.memoryUsage) {
@@ -83,7 +83,7 @@ export class MemoryProfiler {
       return {
         used: Math.round(used * 100) / 100,
         total: Math.round(total * 100) / 100,
-        percentage: Math.round((used / total) * 10000) / 100,
+        percentage: total > 0 ? Math.round((used / total) * 10000) / 100 : 0,
         timestamp: Date.now(),
       };
     } else {
@@ -201,10 +201,10 @@ export class MemoryProfiler {
 
     try {
       const result = await fn();
-      
+
       // 함수 실행 후 최소 한 번의 샘플링을 보장
       await new Promise(resolve => setTimeout(resolve, options.samplingInterval || 100));
-      
+
       this.stopProfiling();
       const profile = this.getProfile(name);
       return { result, profile };
