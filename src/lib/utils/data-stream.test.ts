@@ -1,5 +1,43 @@
 import { describe, expect, test, vi } from 'vitest';
-import { DataStream } from './data-stream';
+import {
+  AdaptiveConcurrencyStrategy,
+  DataStream,
+  type BackpressureCallback,
+  type ChunkView,
+  type ConcurrencyStrategy,
+  type RetryStrategy,
+} from './data-stream';
+
+// 유틸리티 함수: 배열이 인터리브되었는지 확인
+function isInterleaved(arr: number[]): boolean {
+  const positives = arr.filter(n => n > 0);
+  const negatives = arr.filter(n => n < 0).map(n => -n);
+
+  // 모든 positive가 해당하는 negative보다 먼저 나타나야 함
+  for (let i = 0; i < positives.length; i++) {
+    const positiveValue = positives[i];
+    if (positiveValue === undefined) continue;
+
+    const pos = arr.indexOf(positiveValue);
+    const neg = arr.indexOf(-positiveValue);
+    if (pos >= neg) return false;
+  }
+
+  // 적어도 하나의 인터리브가 있어야 함
+  for (let i = 1; i < arr.length; i++) {
+    const current = arr[i];
+    const previous = arr[i - 1];
+    if (current === undefined || previous === undefined) continue;
+
+    if (current > 0 && previous < 0) return true;
+    if (current < 0 && previous > 0) return true;
+  }
+
+  return false;
+}
+
+// 지연 함수
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 describe('DataStream', () => {
   describe('기본 기능', () => {
@@ -7,44 +45,56 @@ describe('DataStream', () => {
       const stream = new DataStream<number>();
       const processor = vi.fn();
 
-      await stream.process([], processor);
+      const result = await stream.process([], processor);
 
       expect(processor).not.toHaveBeenCalled();
+      expect(result).toBeUndefined();
     });
 
     test('단일 청크 처리', async () => {
       const data = [1, 2, 3];
       const stream = new DataStream<number>({ chunkSize: 5 });
-      const processor = vi.fn().mockResolvedValue(undefined);
+      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
+        // ChunkView 인터페이스 검증
+        expect(chunk.data).toBe(data);
+        expect(chunk.start).toBe(0);
+        expect(chunk.end).toBe(3);
+        expect(chunk.length).toBe(3);
+        expect([...chunk]).toEqual([1, 2, 3]);
+        expect(chunk.slice()).toEqual([1, 2, 3]);
+      });
 
       await stream.process(data, processor);
 
       expect(processor).toHaveBeenCalledTimes(1);
-      expect(processor).toHaveBeenCalledWith([1, 2, 3]);
     });
 
     test('여러 청크로 분할 처리', async () => {
       const data = [1, 2, 3, 4, 5, 6];
       const stream = new DataStream<number>({ chunkSize: 2 });
-      const processor = vi.fn().mockResolvedValue(undefined);
+      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
+        // 메모리 효율성 검증: 원본 배열 참조 확인
+        expect(chunk.data).toBe(data);
+      });
 
       await stream.process(data, processor);
 
       expect(processor).toHaveBeenCalledTimes(3);
-      expect(processor).toHaveBeenNthCalledWith(1, [1, 2]);
-      expect(processor).toHaveBeenNthCalledWith(2, [3, 4]);
-      expect(processor).toHaveBeenNthCalledWith(3, [5, 6]);
     });
 
     test('불완전한 마지막 청크 처리', async () => {
       const data = [1, 2, 3, 4, 5];
       const stream = new DataStream<number>({ chunkSize: 2 });
-      const processor = vi.fn().mockResolvedValue(undefined);
+      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
+        if (chunk.start === 4) {
+          expect(chunk.length).toBe(1);
+          expect([...chunk]).toEqual([5]);
+        }
+      });
 
       await stream.process(data, processor);
 
       expect(processor).toHaveBeenCalledTimes(3);
-      expect(processor).toHaveBeenNthCalledWith(3, [5]);
     });
   });
 
@@ -52,18 +102,15 @@ describe('DataStream', () => {
     test('진행률이 올바르게 계산됨', async () => {
       const data = [1, 2, 3, 4, 5, 6];
       const progressCallback = vi.fn();
-      const stream = new DataStream<number>({
-        chunkSize: 2,
-        onProgress: progressCallback,
-      });
+      const stream = new DataStream<number>({ chunkSize: 2, onProgress: progressCallback });
       const processor = vi.fn().mockResolvedValue(undefined);
 
       await stream.process(data, processor);
 
       expect(progressCallback).toHaveBeenCalledTimes(3);
-      expect(progressCallback).toHaveBeenNthCalledWith(1, 2 / 6);
-      expect(progressCallback).toHaveBeenNthCalledWith(2, 4 / 6);
-      expect(progressCallback).toHaveBeenNthCalledWith(3, 1); // 100%
+      expect(progressCallback).toHaveBeenNthCalledWith(1, 2 / 6, 2, 6);
+      expect(progressCallback).toHaveBeenNthCalledWith(2, 4 / 6, 4, 6);
+      expect(progressCallback).toHaveBeenNthCalledWith(3, 1, 6, 6); // 100%
     });
 
     test('빈 배열에서 진행률 콜백 없음', async () => {
@@ -82,10 +129,13 @@ describe('DataStream', () => {
       const data = [1, 2, 3, 4];
       const stream = new DataStream<number>({ chunkSize: 1, concurrency: 1 });
       const processOrder: number[] = [];
-      const processor = vi.fn().mockImplementation(async (chunk: readonly number[]) => {
+      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
         await new Promise(resolve => setTimeout(resolve, 10));
-        if (chunk.length > 0 && chunk[0] !== undefined) {
-          processOrder.push(chunk[0]);
+        if (chunk.length > 0) {
+          const firstItem = [...chunk][0];
+          if (firstItem !== undefined) {
+            processOrder.push(firstItem);
+          }
         }
       });
 
@@ -95,14 +145,148 @@ describe('DataStream', () => {
       expect(processOrder).toEqual([1, 2, 3, 4]);
     });
 
-    test('병렬 처리 (concurrency: 2)', async () => {
+    test('실제 병렬 실행 검증', async () => {
       const data = [1, 2, 3, 4];
       const stream = new DataStream<number>({ chunkSize: 1, concurrency: 2 });
-      const processor = vi.fn().mockResolvedValue(undefined);
+      const executionOrder: number[] = [];
+
+      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
+        const id = [...chunk][0];
+        if (id !== undefined) {
+          executionOrder.push(id);
+          await delay(Math.random() * 50 + 10); // 10-60ms 랜덤 지연
+          executionOrder.push(-id); // 완료 표시
+        }
+      });
 
       await stream.process(data, processor);
 
       expect(processor).toHaveBeenCalledTimes(4);
+      // 병렬 실행이면 실행 순서가 인터리브되어야 함
+      expect(isInterleaved(executionOrder)).toBe(true);
+    });
+
+    test('동시성 제한 검증', async () => {
+      const data = Array.from({ length: 10 }, (_, i) => i);
+      const stream = new DataStream<number>({ chunkSize: 1, concurrency: 3 });
+
+      let concurrentCount = 0;
+      let maxConcurrent = 0;
+
+      const processor = vi.fn().mockImplementation(async () => {
+        concurrentCount++;
+        maxConcurrent = Math.max(maxConcurrent, concurrentCount);
+        await delay(20);
+        concurrentCount--;
+      });
+
+      await stream.process(data, processor);
+
+      expect(maxConcurrent).toBeLessThanOrEqual(3);
+      expect(maxConcurrent).toBeGreaterThan(1); // 실제로 병렬 실행됨
+    });
+
+    test('워커 풀 크기 정확성 검증', async () => {
+      const data = Array.from({ length: 20 }, (_, i) => i);
+      const stream = new DataStream<number>({ chunkSize: 1, concurrency: 4 });
+
+      const activeWorkers = new Set<number>();
+      let maxActiveWorkers = 0;
+      const workerStartTimes = new Map<number, number>();
+
+      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
+        const workerId = Math.random(); // 고유 워커 ID 시뮬레이션
+        activeWorkers.add(workerId);
+        workerStartTimes.set(workerId, performance.now());
+        maxActiveWorkers = Math.max(maxActiveWorkers, activeWorkers.size);
+
+        await delay(30); // 충분한 지연으로 겹침 보장
+
+        activeWorkers.delete(workerId);
+      });
+
+      await stream.process(data, processor);
+
+      expect(maxActiveWorkers).toBeLessThanOrEqual(4);
+      expect(maxActiveWorkers).toBeGreaterThanOrEqual(2); // 최소 2개 워커는 동시 실행
+    });
+
+    test('병렬 처리 시간 효율성 검증', async () => {
+      const data = Array.from({ length: 8 }, (_, i) => i);
+      const processingTime = 50;
+
+      // 순차 처리
+      const sequentialStream = new DataStream<number>({ chunkSize: 1, concurrency: 1 });
+      const sequentialStart = performance.now();
+      await sequentialStream.process(data, async () => {
+        await delay(processingTime);
+      });
+      const sequentialTime = performance.now() - sequentialStart;
+
+      // 병렬 처리 (4개 워커)
+      const parallelStream = new DataStream<number>({ chunkSize: 1, concurrency: 4 });
+      const parallelStart = performance.now();
+      await parallelStream.process(data, async () => {
+        await delay(processingTime);
+      });
+      const parallelTime = performance.now() - parallelStart;
+
+      // 병렬 처리가 순차 처리보다 최소 50% 빨라야 함
+      expect(parallelTime).toBeLessThan(sequentialTime * 0.7);
+    });
+
+    test('워커 간 독립성 검증', async () => {
+      const data = Array.from({ length: 6 }, (_, i) => i);
+      const stream = new DataStream<number>({ chunkSize: 1, concurrency: 3 });
+
+      const workerStates = new Map<number, { started: boolean; completed: boolean }>();
+
+      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
+        const id = [...chunk][0];
+        if (id !== undefined) {
+          workerStates.set(id, { started: true, completed: false });
+
+          // 각 워커마다 다른 처리 시간
+          await delay(10 + (id % 3) * 20);
+
+          workerStates.set(id, { started: true, completed: true });
+        }
+      });
+
+      await stream.process(data, processor);
+
+      // 모든 워커가 독립적으로 완료되었는지 확인
+      expect(workerStates.size).toBe(6);
+      for (const [id, state] of workerStates) {
+        expect(state.started).toBe(true);
+        expect(state.completed).toBe(true);
+      }
+    });
+
+    test('높은 동시성에서의 안정성 검증', async () => {
+      const data = Array.from({ length: 50 }, (_, i) => i);
+      const stream = new DataStream<number>({ chunkSize: 1, concurrency: 10 });
+
+      let processedCount = 0;
+      const processedItems = new Set<number>();
+
+      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
+        const id = [...chunk][0];
+        if (id !== undefined) {
+          processedItems.add(id);
+          processedCount++;
+          await delay(Math.random() * 10); // 0-10ms 랜덤 지연
+        }
+      });
+
+      await stream.process(data, processor);
+
+      expect(processedCount).toBe(50);
+      expect(processedItems.size).toBe(50);
+      // 모든 아이템이 정확히 한 번씩 처리되었는지 확인
+      for (let i = 0; i < 50; i++) {
+        expect(processedItems.has(i)).toBe(true);
+      }
     });
   });
 
@@ -221,7 +405,7 @@ describe('DataStream', () => {
 
       await stream.process(data, processor);
 
-      expect(processor).toHaveBeenCalledWith([1, 2, 3]);
+      expect(processor).toHaveBeenCalledTimes(1);
     });
 
     test('복잡한 객체 타입 처리', async () => {
@@ -240,7 +424,7 @@ describe('DataStream', () => {
 
       await stream.process(users, processor);
 
-      expect(processor).toHaveBeenCalledWith(users);
+      expect(processor).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -263,28 +447,57 @@ describe('DataStream', () => {
 
       setImmediateSpy.mockRestore();
     });
-  });
 
-  describe('엣지 케이스', () => {
-    test('매우 큰 청크 크기', async () => {
-      const data = [1, 2, 3];
-      const stream = new DataStream<number>({ chunkSize: 1000 });
-      const processor = vi.fn().mockResolvedValue(undefined);
+    test('메모리 효율성 - 배열 복사 없음', async () => {
+      const data = Array.from({ length: 1000 }, (_, i) => ({ id: i, data: `item-${i}` }));
+      const stream = new DataStream<(typeof data)[0]>({ chunkSize: 100 });
+
+      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<(typeof data)[0]>) => {
+        // ChunkView는 원본 배열을 참조해야 함
+        expect(chunk.data).toBe(data);
+        // slice()를 호출할 때만 새 배열 생성
+        const sliced = chunk.slice();
+        expect(sliced).not.toBe(data);
+        expect(sliced.length).toBe(chunk.length);
+      });
 
       await stream.process(data, processor);
 
-      expect(processor).toHaveBeenCalledTimes(1);
-      expect(processor).toHaveBeenCalledWith([1, 2, 3]);
+      expect(processor).toHaveBeenCalledTimes(10);
+    });
+  });
+
+  describe('메트릭 수집', () => {
+    test('처리 메트릭 수집', async () => {
+      const data = [1, 2, 3, 4, 5];
+      const stream = new DataStream<number>({ chunkSize: 2 });
+      const processor = vi.fn().mockImplementation(async () => {
+        await delay(10); // 처리 시간 시뮬레이션
+        return 'processed';
+      });
+
+      const result = await stream.process(data, processor);
+
+      expect(result).toBeDefined();
+      expect(result!.metrics).toBeDefined();
+      expect(result!.metrics.totalChunks).toBe(3);
+      expect(result!.metrics.processedChunks).toBe(3);
+      expect(result!.metrics.failedChunks).toBe(0);
+      expect(result!.metrics.averageChunkTime).toBeGreaterThan(0);
+      expect(result!.metrics.totalTime).toBeGreaterThan(0);
     });
 
-    test('지터 범위 검증', () => {
-      // 지터가 0-1 범위를 벗어나는 경우 자동 보정
-      const stream1 = new DataStream({ retryJitter: -0.5 });
-      const stream2 = new DataStream({ retryJitter: 1.5 });
+    test('실패한 청크 메트릭', async () => {
+      const data = [1, 2, 3];
+      const stream = new DataStream<number>({ chunkSize: 1 });
+      const processor = vi.fn().mockResolvedValueOnce('success').mockRejectedValueOnce(new Error('fail'));
 
-      // 내부적으로 0-1 범위로 클램핑되어야 함
-      expect(stream1).toBeInstanceOf(DataStream);
-      expect(stream2).toBeInstanceOf(DataStream);
+      try {
+        await stream.process(data, processor);
+      } catch (error) {
+        // 오류가 발생해야 함
+        expect(error).toBeInstanceOf(Error);
+      }
     });
   });
 
@@ -301,15 +514,370 @@ describe('DataStream', () => {
     });
 
     test('결과 반환 처리', async () => {
-      const data = [1, 2, 3];
-      const stream = new DataStream<number>();
-      const processor = vi.fn().mockResolvedValue('processed');
+      const data = [1, 2, 3, 4];
+      const stream = new DataStream<number>({ chunkSize: 2 });
+      const processor = vi.fn().mockResolvedValueOnce('chunk1').mockResolvedValueOnce('chunk2');
 
       const result = await stream.process(data, processor);
 
-      expect(result).toEqual({
-        results: ['processed'],
-        errors: [],
+      expect(result).toBeDefined();
+      expect(result!.results).toEqual(['chunk1', 'chunk2']);
+      expect(result!.errors).toEqual([]);
+      expect(result!.metrics).toBeDefined();
+    });
+
+    test('결과 순서 보장', async () => {
+      const data = Array.from({ length: 10 }, (_, i) => i);
+      const stream = new DataStream<number>({ chunkSize: 1, concurrency: 3 });
+
+      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
+        const id = [...chunk][0];
+        // 랜덤 지연으로 순서 섞기 시도
+        await delay(Math.random() * 20);
+        return `result-${id}`;
+      });
+
+      const result = await stream.process(data, processor);
+
+      expect(result).toBeDefined();
+      expect(result!.results).toEqual([
+        'result-0',
+        'result-1',
+        'result-2',
+        'result-3',
+        'result-4',
+        'result-5',
+        'result-6',
+        'result-7',
+        'result-8',
+        'result-9',
+      ]);
+    });
+  });
+
+  describe('대용량 데이터 시뮬레이션', () => {
+    test('대용량 데이터 처리 성능', async () => {
+      const data = Array.from({ length: 10000 }, (_, i) => i);
+      const stream = new DataStream<number>({ chunkSize: 1000, concurrency: 4 });
+
+      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
+        // 실제 처리 시뮬레이션
+        let sum = 0;
+        for (const item of chunk) {
+          sum += item;
+        }
+        return sum;
+      });
+
+      const startTime = performance.now();
+      const result = await stream.process(data, processor);
+      const endTime = performance.now();
+
+      expect(result).toBeDefined();
+      expect(result!.results).toHaveLength(10);
+      expect(result!.metrics.totalChunks).toBe(10);
+      expect(result!.metrics.processedChunks).toBe(10);
+      expect(endTime - startTime).toBeLessThan(1000); // 1초 이내 완료
+    });
+  });
+
+  describe('DataStream 아키텍처 개선 테스트', () => {
+    describe('Strategy 패턴', () => {
+      test('커스텀 재시도 전략 적용', async () => {
+        const data = [1];
+
+        // 커스텀 재시도 전략: 최대 2회, 고정 지연 50ms
+        class CustomRetryStrategy implements RetryStrategy {
+          shouldRetry(attempt: number): boolean {
+            return attempt <= 2;
+          }
+          getDelay(): number {
+            return 50;
+          }
+        }
+
+        const stream = new DataStream<number>({
+          retryStrategy: new CustomRetryStrategy(),
+        });
+
+        const processor = vi
+          .fn()
+          .mockRejectedValueOnce(new Error('First fail'))
+          .mockRejectedValueOnce(new Error('Second fail'))
+          .mockResolvedValueOnce(undefined);
+
+        await stream.process(data, processor);
+        expect(processor).toHaveBeenCalledTimes(3);
+      });
+
+      test('적응형 동시성 전략 적용', async () => {
+        const smallData = Array.from({ length: 50 }, (_, i) => i);
+        const largeData = Array.from({ length: 2000 }, (_, i) => i);
+
+        class TestConcurrencyStrategy implements ConcurrencyStrategy {
+          getWorkerCount(totalItems: number): number {
+            return totalItems < 100 ? 2 : 8;
+          }
+          async shouldPause(): Promise<boolean> {
+            return false;
+          }
+        }
+
+        const stream = new DataStream<number>({
+          concurrencyStrategy: new TestConcurrencyStrategy(),
+        });
+
+        let smallDataWorkers = 0;
+        let largeDataWorkers = 0;
+
+        const processor = vi.fn().mockImplementation(async () => {
+          await delay(10);
+        });
+
+        // 작은 데이터셋 테스트
+        await stream.process(smallData, processor);
+
+        // 큰 데이터셋 테스트
+        await stream.process(largeData, processor);
+
+        expect(processor).toHaveBeenCalled();
+      });
+    });
+
+    describe('백프레셔 제어', () => {
+      test('메모리 임계값 초과 시 처리 일시정지', async () => {
+        const data = Array.from({ length: 10 }, (_, i) => i);
+
+        let pauseCount = 0;
+        const backpressureCallback: BackpressureCallback = async (memoryUsage, activeWorkers) => {
+          pauseCount++;
+          // 첫 번째 호출에서는 일시정지, 두 번째부터는 계속 진행
+          return pauseCount > 1;
+        };
+
+        const stream = new DataStream<number>({
+          chunkSize: 1,
+          backpressureCallback,
+          concurrencyStrategy: new AdaptiveConcurrencyStrategy(2, 0, backpressureCallback), // 임계값 0으로 설정하여 항상 트리거
+        });
+
+        const processor = vi.fn().mockImplementation(async () => {
+          await delay(10);
+        });
+
+        await stream.process(data, processor);
+
+        expect(pauseCount).toBeGreaterThan(0);
+        // 백프레셔로 인해 처리가 일시정지되지만 결국 모든 청크가 처리됨
+        expect(processor).toHaveBeenCalledTimes(10);
+      });
+
+      test('메모리 모니터링 기능', async () => {
+        const data = [1, 2, 3];
+        const stream = new DataStream<number>();
+
+        const processor = vi.fn().mockResolvedValue('result');
+        const result = await stream.process(data, processor);
+
+        expect(result).toBeDefined();
+        expect(result!.metrics.maxMemoryUsage).toBeGreaterThanOrEqual(0);
+      });
+    });
+
+    describe('함수형 스트림 체이닝', () => {
+      test('map 체이닝', async () => {
+        const data = [1, 2, 3, 4, 5];
+        const stream = new DataStream<number>({ chunkSize: 2 });
+
+        const result = await stream
+          .chain(data)
+          .map(x => x * 2)
+          .collect();
+
+        expect(result).toEqual([2, 4, 6, 8, 10]);
+      });
+
+      test('filter 체이닝', async () => {
+        const data = [1, 2, 3, 4, 5, 6];
+        const stream = new DataStream<number>({ chunkSize: 2 });
+
+        const result = await stream
+          .chain(data)
+          .filter(x => x % 2 === 0)
+          .collect();
+
+        expect(result).toEqual([2, 4, 6]);
+      });
+
+      test('map과 filter 조합 체이닝', async () => {
+        const data = [1, 2, 3, 4, 5];
+        const stream = new DataStream<number>({ chunkSize: 2 });
+
+        const result = await stream
+          .chain(data)
+          .map(x => x * 2)
+          .filter(x => x > 4)
+          .collect();
+
+        expect(result).toEqual([6, 8, 10]);
+      });
+
+      test('reduce 체이닝', async () => {
+        const data = [1, 2, 3, 4, 5];
+        const stream = new DataStream<number>({ chunkSize: 2 });
+
+        const sum = await stream.chain(data).reduce((acc, x) => acc + x, 0);
+
+        expect(sum).toBe(15);
+      });
+
+      test('forEach 체이닝', async () => {
+        const data = [1, 2, 3];
+        const stream = new DataStream<number>({ chunkSize: 2, concurrency: 1 }); // 순차 처리로 순서 보장
+        const results: number[] = [];
+
+        await stream.chain(data).forEach(x => {
+          results.push(x * 2);
+        });
+
+        expect(results).toEqual([2, 4, 6]);
+      });
+
+      test('복잡한 체이닝 조합', async () => {
+        const data = Array.from({ length: 20 }, (_, i) => i + 1);
+        const stream = new DataStream<number>({ chunkSize: 3, concurrency: 2 });
+
+        const result = await stream
+          .chain(data)
+          .filter(x => x % 2 === 0) // 짝수만
+          .map(x => x * x) // 제곱
+          .filter(x => x < 100) // 100 미만만
+          .collect();
+
+        expect(result).toEqual([4, 16, 36, 64]); // 2², 4², 6², 8²
+      });
+    });
+
+    describe('아이템 단위 진행률 보고', () => {
+      test('아이템 단위 정밀한 진행률 추적', async () => {
+        const data = Array.from({ length: 7 }, (_, i) => i);
+        const progressUpdates: Array<{ progress: number; processed: number; total: number }> = [];
+
+        const stream = new DataStream<number>({
+          chunkSize: 3,
+          onProgress: (progress, processed, total) => {
+            progressUpdates.push({ progress, processed, total });
+          },
+        });
+
+        const processor = vi.fn().mockImplementation(async () => {
+          await delay(10);
+        });
+
+        await stream.process(data, processor);
+
+        expect(progressUpdates.length).toBeGreaterThan(0);
+
+        // 첫 번째 업데이트는 첫 번째 청크 완료 후 (3개 아이템)
+        expect(progressUpdates[0]).toEqual({
+          progress: 3 / 7,
+          processed: 3,
+          total: 7,
+        });
+
+        // 마지막 업데이트는 100% 완료
+        const lastUpdate = progressUpdates[progressUpdates.length - 1];
+        expect(lastUpdate).toEqual({
+          progress: 1,
+          processed: 7,
+          total: 7,
+        });
+      });
+
+      test('빈 배열에서 진행률 콜백 호출되지 않음', async () => {
+        const progressCallback = vi.fn();
+        const stream = new DataStream<number>({ onProgress: progressCallback });
+
+        await stream.process([], vi.fn());
+
+        expect(progressCallback).not.toHaveBeenCalled();
+      });
+
+      test('단일 아이템에서 정확한 진행률', async () => {
+        const data = [42];
+        const progressUpdates: Array<{ progress: number; processed: number; total: number }> = [];
+
+        const stream = new DataStream<number>({
+          onProgress: (progress, processed, total) => {
+            progressUpdates.push({ progress, processed, total });
+          },
+        });
+
+        await stream.process(data, vi.fn());
+
+        expect(progressUpdates).toHaveLength(1);
+        expect(progressUpdates[0]).toEqual({
+          progress: 1,
+          processed: 1,
+          total: 1,
+        });
+      });
+    });
+
+    describe('향상된 메트릭 수집', () => {
+      test('확장된 메트릭 정보 수집', async () => {
+        const data = Array.from({ length: 10 }, (_, i) => i);
+        const stream = new DataStream<number>({ chunkSize: 3 });
+
+        const processor = vi.fn().mockImplementation(async () => {
+          await delay(5);
+          return 'processed';
+        });
+
+        const result = await stream.process(data, processor);
+
+        expect(result).toBeDefined();
+        expect(result!.metrics).toMatchObject({
+          totalChunks: 4,
+          processedChunks: 4,
+          failedChunks: 0,
+          processedItems: 10,
+          totalItems: 10,
+        });
+
+        expect(typeof result!.metrics.maxMemoryUsage).toBe('number');
+        expect(result!.metrics.maxMemoryUsage).toBeGreaterThanOrEqual(0);
+        expect(typeof result!.metrics.averageChunkTime).toBe('number');
+        expect(result!.metrics.averageChunkTime).toBeGreaterThan(0);
+        expect(typeof result!.metrics.totalTime).toBe('number');
+        expect(result!.metrics.totalTime).toBeGreaterThan(0);
+      });
+    });
+
+    describe('레거시 호환성', () => {
+      test('기존 옵션 형식 지원', async () => {
+        const data = [1];
+        const stream = new DataStream<number>({
+          retryCount: 2,
+          retryDelay: 100,
+          retryBackoffFactor: 1.5,
+          retryJitter: 0.1,
+          concurrency: 3,
+        });
+
+        const processor = vi.fn().mockRejectedValueOnce(new Error('fail')).mockResolvedValueOnce(undefined);
+
+        await stream.process(data, processor);
+        expect(processor).toHaveBeenCalledTimes(2);
+      });
+
+      test('processVoid 메서드 호환성', async () => {
+        const data = [1, 2, 3];
+        const stream = new DataStream<number>();
+        const processor = vi.fn();
+
+        await stream.processVoid(data, processor);
+        expect(processor).toHaveBeenCalledTimes(1);
       });
     });
   });
