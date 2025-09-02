@@ -4,7 +4,7 @@
 
 ## `createContext` 팩토리
 
-`src/context/create-context.tsx` 파일은 타입-세이프(type-safe)한 범용 컨텍스트를 쉽게 생성할 수 있는 `createContext` 팩토리 함수를 제공합니다. 이 함수는 새로운 컨텍스트를 만들 때 발생하는 반복적인 코드를 줄여주고, Provider 외부에서 컨텍스트를 사용하는 실수를 방지합니다.
+`src/context/create-context.tsx` 파일은 타입 안전한 범용 컨텍스트를 쉽게 생성할 수 있는 `createContext` 팩토리 함수를 제공합니다. 이 함수는 새로운 컨텍스트를 만들 때 발생하는 반복적인 코드를 줄여주고, Provider 외부에서 컨텍스트를 사용하는 실수를 방지합니다.
 
 ### 사용법
 
