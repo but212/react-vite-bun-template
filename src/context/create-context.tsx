@@ -8,6 +8,8 @@ import React from 'react';
  * @param {string} contextName - 디버깅 시 사용할 컨텍스트의 이름입니다.
  * @returns {[() => T, React.FC<React.PropsWithChildren<{ value: T }>>]} - [useContext 훅, Provider 컴포넌트] 튜플을 반환합니다.
  *
+ * @warning 컨텍스트 값으로 'undefined'는 사용할 수 없습니다.
+ *
  * @example
  * // 1. 컨텍스트 생성
  * const [useTheme, ThemeProvider] = createContext<string>('Theme');
