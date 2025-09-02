@@ -370,8 +370,8 @@ export class DataStream<T> {
   /**
    * 함수형 스트림 체이닝 시작
    */
-  chain(data: readonly T[]): StreamChain<T> {
-    return new StreamChainImpl<T>(this, data);
+  chain<U extends T>(data: readonly U[]): StreamChain<U> {
+    return new StreamChainImpl<U>(this, data);
   }
 
   /**
