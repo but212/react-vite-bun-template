@@ -16,17 +16,18 @@ import { useEffect, useState } from 'react';
  * - 미디어 쿼리 조건이 변경되면 자동으로 상태가 갱신됩니다.
  */
 export function useMediaQuery(query: string): boolean {
-  // 미디어 쿼리 일치 여부 상태
-  const [matches, setMatches] = useState(false);
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.matchMedia(query).matches;
+  });
 
   useEffect(() => {
-    // 브라우저 환경이 아닌 경우 처리
-    if (typeof window === 'undefined') return;
-
     // 미디어 쿼리 객체 생성
     const mediaQueryList = window.matchMedia(query);
 
-    // 변경 이벤트 리스너(한글: 미디어 쿼리 일치 여부가 변경될 때 호출)
+    // 미디어 쿼리 변경을 감지하는 이벤트 리스너
     const listener = (event: MediaQueryListEvent) => setMatches(event.matches);
 
     // 초기 상태 설정

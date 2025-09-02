@@ -24,22 +24,39 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, Dispatch<S
     }
     try {
       const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
+      return item ? (JSON.parse(item) as T) : initialValue;
     } catch (error) {
-      console.error(error);
+      console.error(`Error reading localStorage key "${key}":`, error);
       return initialValue;
     }
   });
 
   useEffect(() => {
     try {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(key, JSON.stringify(storedValue));
-      }
+      window.localStorage.setItem(key, JSON.stringify(storedValue));
     } catch (error) {
-      console.error(error);
+      console.error(`Error setting localStorage key "${key}":`, error);
     }
   }, [key, storedValue]);
+
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key !== key) {
+        return;
+      }
+      try {
+        setStoredValue(e.newValue ? (JSON.parse(e.newValue) as T) : initialValue);
+      } catch (error) {
+        console.error(`Error parsing storage event value for key "${key}":`, error);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [key, initialValue]);
 
   return [storedValue, setStoredValue];
 }
