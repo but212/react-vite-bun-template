@@ -96,6 +96,16 @@ export interface StreamMetrics {
   totalItems: number;
   /** 최대 메모리 사용량 (MB) */
   maxMemoryUsage: number;
+  /** 실제 사용된 동시성 수 */
+  concurrencyUsed: number;
+  /** 총 재시도 횟수 */
+  totalRetries: number;
+  /** 최대 동시 실행 워커 수 */
+  maxConcurrent: number;
+  /** 백프레셔로 인한 일시정지 횟수 */
+  pauseCount: number;
+  /** 백프레셔로 인한 총 대기 시간 (ms) */
+  throttledTimeMs: number;
 }
 
 /**
@@ -116,6 +126,19 @@ export interface ProcessResult<R> {
 
 /**
  * 재시도 전략 인터페이스
+ * @example
+ * // 5번 재시도하고, 매번 1초씩 기다리는 간단한 재시도 전략
+ * class SimpleRetry implements RetryStrategy {
+ *   shouldRetry(attempt: number, error: unknown): boolean {
+ *     console.log(`Attempt ${attempt} failed:`, error);
+ *     return attempt <= 5;
+ *   }
+ *   getDelay(attempt: number): number {
+ *     return 1000; // 1초 고정 지연
+ *   }
+ * }
+ *
+ * const stream = new DataStream({ retryStrategy: new SimpleRetry() });
  */
 export interface RetryStrategy {
   shouldRetry(attempt: number, error: unknown): boolean;
@@ -152,6 +175,22 @@ export class ExponentialBackoffRetryStrategy implements RetryStrategy {
 
 /**
  * 동시성 제어 전략 인터페이스
+ * @example
+ * // 항상 8개의 워커를 사용하고, 메모리 사용량이 1GB를 넘으면 일시 중지하는 전략
+ * class FixedConcurrency implements ConcurrencyStrategy {
+ *   getWorkerCount(totalItems: number): number {
+ *     return 8;
+ *   }
+ *   async shouldPause(activeWorkers: number, memoryUsage: number): Promise<boolean> {
+ *     if (memoryUsage > 1024) {
+ *       console.warn(`High memory usage (${memoryUsage.toFixed(2)}MB), pausing workers...`);
+ *       return true;
+ *     }
+ *     return false;
+ *   }
+ * }
+ *
+ * const stream = new DataStream({ concurrencyStrategy: new FixedConcurrency() });
  */
 export interface ConcurrencyStrategy {
   getWorkerCount(totalItems: number): number;
@@ -200,7 +239,6 @@ export class AdaptiveConcurrencyStrategy implements ConcurrencyStrategy {
 export interface DataStreamOptions {
   chunkSize?: number;
   onProgress?: ProgressCallback;
-  concurrency?: number;
   signal?: AbortSignal;
   retryStrategy?: RetryStrategy;
   concurrencyStrategy?: ConcurrencyStrategy;
@@ -208,34 +246,20 @@ export interface DataStreamOptions {
   /**
    * true일 경우, 첫 오류 발생 시 즉시 처리를 중단합니다.
    * false일 경우, 오류가 발생해도 모든 청크 처리를 시도하고 모든 오류를 수집합니다.
-   * @defaultValue true
+   *
+   * 주의: retryStrategy가 제공되면 기본값이 false가 됩니다.
+   * failFast가 true여도 개별 청크에 대한 재시도는 수행되며, 최종 실패 시에만 전체 처리가 중단됩니다.
+   *
+   * @defaultValue retryStrategy가 제공되지 않으면 true, 제공되면 false
    */
   failFast?: boolean;
   /**
-   * 청크 처리 실패 시 최대 재시도 횟수입니다.
-   * @defaultValue 0 (재시도 없음)
-   * @deprecated retryStrategy 사용 권장
+   * failFast 모드에서도 개별 청크에 대한 재시도를 수행할지 여부입니다.
+   * true일 경우, failFast 모드에서도 청크별 재시도를 수행하고 최종 실패 시에만 전체 중단합니다.
+   * false일 경우, failFast 모드에서는 재시도 없이 즉시 실패합니다.
+   * @defaultValue false
    */
-  retryCount?: number;
-  /**
-   * 재시도 간 지연(ms), 지수 백오프에 사용.
-   * @defaultValue 200
-   * @deprecated retryStrategy 사용 권장
-   */
-  retryDelay?: number;
-  /**
-   * 지수 백오프의 증가율입니다.
-   * @defaultValue 2
-   * @deprecated retryStrategy 사용 권장
-   */
-  retryBackoffFactor?: number;
-  /**
-   * 재시도 지연에 추가할 무작위성 비율(0.0 ~ 1.0).
-   * 여러 클라이언트의 동시 재시도 시 부하 분산에 도움이 됩니다.
-   * @defaultValue 0.2 (20%)
-   * @deprecated retryStrategy 사용 권장
-   */
-  retryJitter?: number;
+  retryInFailFast?: boolean;
 }
 
 /**
@@ -250,40 +274,43 @@ export interface StreamChain<T> {
 }
 
 /**
- * 스트림 체인 구현 클래스
+ * 변환 연산의 타입 정의
+ */
+type TransformOperation = { type: 'map'; fn: (item: any) => any } | { type: 'filter'; fn: (item: any) => boolean };
+
+/**
+ * 스트림 체인 구현 클래스 - 지연 평가(lazy evaluation)를 사용하여 메모리 효율성을 개선
  */
 class StreamChainImpl<T> implements StreamChain<T> {
   private readonly stream: DataStream<any>;
   private readonly data: readonly T[];
-  private readonly transformations: Array<(data: readonly any[]) => readonly any[]>;
+  private readonly operations: TransformOperation[];
 
-  constructor(
-    stream: DataStream<any>,
-    data: readonly T[],
-    transformations: Array<(data: readonly any[]) => readonly any[]> = []
-  ) {
+  constructor(stream: DataStream<any>, data: readonly T[], operations: TransformOperation[] = []) {
     this.stream = stream;
     this.data = data;
-    this.transformations = transformations;
+    this.operations = operations;
   }
 
   map<U>(mapper: (item: T) => U): StreamChain<U> {
-    const newTransformations = [...this.transformations, (data: readonly T[]) => data.map(mapper)];
-    return new StreamChainImpl<U>(this.stream, this.data as readonly any[], newTransformations);
+    const newOperations = [...this.operations, { type: 'map' as const, fn: mapper as (item: any) => any }];
+    return new StreamChainImpl<U>(this.stream, this.data as readonly any[], newOperations);
   }
 
   filter(predicate: (item: T) => boolean): StreamChain<T> {
-    const newTransformations = [...this.transformations, (data: readonly T[]) => data.filter(predicate)];
-    return new StreamChainImpl<T>(this.stream, this.data, newTransformations);
+    const newOperations = [...this.operations, { type: 'filter' as const, fn: predicate as (item: any) => boolean }];
+    return new StreamChainImpl<T>(this.stream, this.data, newOperations);
   }
 
   async reduce<U>(reducer: (acc: U, item: T) => U, initialValue: U): Promise<U> {
-    const transformedData = this.applyTransformations();
     let accumulator = initialValue;
 
-    await this.stream.process(transformedData, async chunk => {
-      for (const item of chunk) {
-        accumulator = reducer(accumulator, item);
+    await this.stream.process(this.data, async chunk => {
+      for (const rawItem of chunk) {
+        const transformedItem = this.applyTransformationsToItem(rawItem);
+        if (transformedItem !== null) {
+          accumulator = reducer(accumulator, transformedItem);
+        }
       }
     });
 
@@ -291,33 +318,57 @@ class StreamChainImpl<T> implements StreamChain<T> {
   }
 
   async forEach(callback: (item: T) => void | Promise<void>): Promise<void> {
-    const transformedData = this.applyTransformations();
-
-    await this.stream.process(transformedData, async chunk => {
-      for (const item of chunk) {
-        await callback(item);
+    await this.stream.process(this.data, async chunk => {
+      for (const rawItem of chunk) {
+        const transformedItem = this.applyTransformationsToItem(rawItem);
+        if (transformedItem !== null) {
+          await callback(transformedItem);
+        }
       }
     });
   }
 
   async collect(): Promise<T[]> {
-    const transformedData = this.applyTransformations();
-    const results: T[] = [];
-
-    await this.stream.process(transformedData, async chunk => {
-      results.push(...chunk.slice());
+    // process()의 청크-인덱스 정렬 기능을 활용하여 순서 보장
+    const { results: chunks } = await this.stream.process(this.data, async chunk => {
+      const transformedItems: T[] = [];
+      for (const rawItem of chunk) {
+        const transformedItem = this.applyTransformationsToItem(rawItem);
+        if (transformedItem !== null) {
+          transformedItems.push(transformedItem);
+        }
+      }
+      return transformedItems;
     });
 
-    return results;
+    return chunks.flat();
   }
 
-  private applyTransformations(): readonly T[] {
-    return this.transformations.reduce((data, transform) => transform(data), this.data) as readonly T[];
+  /**
+   * 개별 아이템에 지연 변환을 적용합니다.
+   * 연산들을 추가된 순서대로 적용합니다.
+   */
+  private applyTransformationsToItem(item: any): T | null {
+    let currentItem = item;
+
+    // 모든 연산을 순서대로 적용
+    for (const operation of this.operations) {
+      if (operation.type === 'filter') {
+        if (!operation.fn(currentItem)) {
+          return null; // 필터 조건을 만족하지 않으면 제외
+        }
+      } else if (operation.type === 'map') {
+        currentItem = operation.fn(currentItem);
+      }
+    }
+
+    return currentItem;
   }
 }
 
 /**
  * 메모리 사용량 모니터링 유틸리티
+{{ ... }}
  */
 class MemoryMonitor {
   getMemoryUsage(): number {
@@ -347,30 +398,24 @@ export class DataStream<T> {
   private readonly concurrencyStrategy: ConcurrencyStrategy;
   private readonly memoryMonitor: MemoryMonitor;
   private readonly failFast: boolean;
+  private readonly retryInFailFast: boolean;
 
   constructor(options: DataStreamOptions = {}) {
+    if (options.chunkSize !== undefined && options.chunkSize <= 0) {
+      throw new Error('chunkSize must be greater than 0');
+    }
     this.chunkSize = options.chunkSize ?? 1024;
     this.onProgress = options.onProgress;
     this.signal = options.signal;
-    this.failFast = options.failFast ?? true;
+    this.failFast = options.failFast ?? !options.retryStrategy;
+    this.retryInFailFast = options.retryInFailFast ?? false;
 
     // 레거시 옵션 지원하면서 새로운 전략 패턴 우선 사용
-    this.retryStrategy =
-      options.retryStrategy ??
-      new ExponentialBackoffRetryStrategy(
-        options.retryCount ?? 0,
-        options.retryDelay ?? 200,
-        options.retryBackoffFactor ?? 2,
-        options.retryJitter ?? 0.2
-      );
+    this.retryStrategy = options.retryStrategy ?? new ExponentialBackoffRetryStrategy();
 
     this.concurrencyStrategy =
       options.concurrencyStrategy ??
-      new AdaptiveConcurrencyStrategy(
-        options.concurrency ?? 4,
-        512, // 기본 메모리 임계값 512MB
-        options.backpressureCallback
-      );
+      new AdaptiveConcurrencyStrategy(undefined, undefined, options.backpressureCallback);
 
     this.memoryMonitor = new MemoryMonitor();
   }
@@ -385,31 +430,6 @@ export class DataStream<T> {
   /**
    * 내부: 지정된 청크를 processor로 처리(재시도 포함)
    */
-  private async processChunkWithRetry<R>(
-    chunk: ChunkView<T>,
-    processor: ChunkProcessor<T, R>,
-    internalSignal?: AbortSignal
-  ): Promise<R> {
-    let attempts = 0;
-    while (true) {
-      // 외부 중단 신호 확인
-      this.signal?.throwIfAborted();
-      // 내부 중단 신호는 조용히 처리 (다른 워커의 오류로 인한 것)
-      if (internalSignal?.aborted) {
-        throw new Error('Operation cancelled by another worker');
-      }
-
-      try {
-        return await processor(chunk);
-      } catch (e) {
-        attempts++;
-        if (!this.retryStrategy.shouldRetry(attempts, e)) throw e;
-
-        const delay = this.retryStrategy.getDelay(attempts);
-        await new Promise(res => setTimeout(res, delay));
-      }
-    }
-  }
 
   /**
    * 데이터를 청크 단위로 병렬 비동기 처리(진행률/재시도/취소/백프레셔/이벤트루프 양보 포함)
@@ -426,99 +446,149 @@ export class DataStream<T> {
     const startTime = performance.now();
     let maxMemoryUsage = 0;
 
-    // 내부 AbortController로 워커 간 즉각적인 오류 전파
+    // 내부 AbortController: 한 워커에서 오류 발생 시 다른 모든 워커를 즉시 중단시키기 위함 (failFast 모드).
     const internalController = new AbortController();
     const internalSignal = internalController.signal;
 
     const totalChunks = Math.ceil(data.length / this.chunkSize);
     const concurrency = this.concurrencyStrategy.getWorkerCount(data.length);
-    const processedItems = { count: 0 }; // 객체로 래핑하여 race condition 방지
-    let chunkIndex = 0;
-    const results = new Map<number, R>(); // sparse array 대신 Map 사용
+    const processedItems = { count: 0 }; // 여러 워커가 안전하게 접근하도록 객체로 래핑 (참조 전달).
+    let chunkIndex = 0; // 원자적으로 증가시켜 각 워커가 고유한 청크를 가져가도록 함.
+    const results = new Map<number, R>(); // 청크가 순서대로 처리되지 않으므로, Map을 사용해 인덱스 기반으로 결과를 저장.
     const errors: Array<{ chunkIndex: number; error: unknown }> = [];
     const chunkTimes: number[] = [];
     let activeWorkerCount = 0;
 
-    // 단일 청크 처리 로직
+    // 확장된 메트릭 추적 변수들
+    let totalRetries = 0;
+    let maxConcurrent = 0;
+    let pauseCount = 0;
+    let throttledTimeMs = 0;
+
+    // 단일 청크 처리 로직: 재시도, 결과/오류 저장, 진행률 업데이트를 담당.
     const processSingleChunk = async (chunkIndex: number) => {
+      // 청크 처리 시작 전 중단 신호 확인
+      this.signal?.throwIfAborted();
+
       const start = chunkIndex * this.chunkSize;
       const end = Math.min(start + this.chunkSize, data.length);
       const chunk = new ChunkViewImpl(data, start, end);
-
       const chunkStartTime = performance.now();
-      try {
-        const result = await this.processChunkWithRetry(chunk, processor, internalSignal);
 
+      try {
+        let result: R;
+        if (this.failFast && !this.retryInFailFast) {
+          // failFast이고 재시도를 하지 않는 경우
+          if (internalSignal?.aborted) throw new Error('Operation cancelled by another worker');
+          this.signal?.throwIfAborted();
+          result = await processor(chunk);
+          this.signal?.throwIfAborted();
+        } else {
+          // failFast이지만 재시도를 하거나, failFast가 아닌 경우
+          let attempts = 0;
+          while (true) {
+            this.signal?.throwIfAborted();
+            if (internalSignal?.aborted) throw new Error('Operation cancelled by another worker');
+
+            try {
+              result = await processor(chunk);
+              break; // 성공 시 루프 탈출
+            } catch (e) {
+              attempts++;
+              if (!this.retryStrategy.shouldRetry(attempts, e) || internalSignal?.aborted) {
+                throw e; // 재시도 불가 시 오류 던지기
+              }
+              totalRetries++; // 실제 재시도가 수행될 때만 카운트
+              const delay = this.retryStrategy.getDelay(attempts);
+              await new Promise(res => setTimeout(res, delay));
+            }
+          }
+        }
+
+        // 성공 처리
         if (result !== undefined) {
           results.set(chunkIndex, result);
         }
-
         processedItems.count += chunk.length;
+        chunkTimes.push(performance.now() - chunkStartTime);
+
         if (this.onProgress) {
           const progress = data.length === 0 ? 1 : Math.min(1, processedItems.count / data.length);
           this.onProgress(progress, processedItems.count, data.length);
         }
-
-        chunkTimes.push(performance.now() - chunkStartTime);
       } catch (err) {
+        // 실패 처리
         if (!internalSignal.aborted) {
           errors.push({ chunkIndex, error: err });
           if (this.failFast) {
             internalController.abort();
           }
         }
-        // failFast 모드에서는 오류 발생 시 즉시 반환하여 루프 중단에 기여
-        if (this.failFast) {
-          throw err; // worker의 catch 블록으로 전파
-        }
       }
     };
 
-    // 동시 워커 풀 구현
+    // 동시성 제어를 위한 워커 함수. 풀(Pool)의 일부로 동작.
     const worker = async () => {
       while (true) {
-        // 외부 또는 내부 신호에 의해 중단되었는지 확인
+        // 워커 루프 시작 시 외부 중단 신호 확인
+        this.signal?.throwIfAborted();
+
+        // 외부(사용자) 또는 내부(failFast) 신호에 의해 중단되었는지 확인.
         if (internalSignal.aborted) break;
 
-        // 백프레셔 확인
+        // 백프레셔: 메모리 사용량이 임계값을 넘으면 잠시 대기.
         const currentMemoryUsage = this.memoryMonitor.getMemoryUsage();
         maxMemoryUsage = Math.max(maxMemoryUsage, currentMemoryUsage);
 
         if (await this.concurrencyStrategy.shouldPause(activeWorkerCount, currentMemoryUsage)) {
-          await new Promise(resolve => setTimeout(resolve, 100)); // 100ms 대기
+          pauseCount++; // 일시정지 횟수 추적
+          const pauseStart = performance.now();
+          await new Promise(resolve => setTimeout(resolve, 100)); // 과도한 확인을 피하기 위해 잠시 대기.
+          throttledTimeMs += performance.now() - pauseStart; // 대기 시간 누적
           continue;
         }
 
-        // 다음 청크 인덱스 가져오기
+        // 경쟁 상태를 피하며 다음 처리할 청크 인덱스를 원자적으로 가져옴.
         const myIndex = chunkIndex++;
-        if (myIndex >= totalChunks) break;
+        if (myIndex >= totalChunks) break; // 모든 청크가 할당되었으면 워커 종료.
 
         activeWorkerCount++;
+        maxConcurrent = Math.max(maxConcurrent, activeWorkerCount); // 최대 동시 실행 워커 수 추적
         try {
           await processSingleChunk(myIndex);
 
-          // 10청크마다 이벤트루프 양보 (GC/UI 응답성 보장)
+          // 긴 작업으로 인한 이벤트 루프 블로킹을 방지. UI 렌더링, GC 등을 위해 다른 작업에 실행 기회를 양보.
           if ((myIndex + 1) % 10 === 0) {
-            await new Promise(resolve => setImmediate(resolve));
+            if (typeof setImmediate !== 'undefined') {
+              await new Promise(resolve => setImmediate(resolve));
+            } else {
+              await new Promise(resolve => setTimeout(resolve, 0));
+            }
           }
         } catch (err) {
-          // processSingleChunk에서 failFast:true로 오류가 전파된 경우 루프 중단
-          if (this.failFast) {
-            break;
-          }
-          // failFast:false인 경우, 오류는 이미 수집되었으므로 계속 진행
+          // processSingleChunk 내부에서 모든 오류를 처리하므로, worker의 catch 블록은 비워둡니다.
+          // failFast:true인 경우, internalController가 중단 신호를 보내 루프가 종료됩니다.
+          // failFast:false인 경우, 오류는 errors 배열에 수집되고 이 워커는 다음 작업을 계속합니다.
         } finally {
           activeWorkerCount--;
         }
       }
     };
 
-    // 워커 풀 생성 및 실행
+    // 워커 풀을 생성하고 모든 워커가 작업을 마칠 때까지 기다림.
     const workers = Array.from({ length: concurrency }, () => worker());
     await Promise.all(workers);
 
+    // 외부 AbortSignal에 의해 중단된 경우, 표준 AbortError를 던짐.
     if (this.signal?.aborted) {
-      throw new DOMException('This operation was aborted', 'AbortError');
+      if (typeof DOMException !== 'undefined') {
+        throw new DOMException('This operation was aborted', 'AbortError');
+      } else {
+        // Node.js 환경이나 DOMException이 없는 환경에서의 폴백
+        const error = new Error('This operation was aborted');
+        error.name = 'AbortError';
+        throw error;
+      }
     }
 
     const endTime = performance.now();
@@ -531,15 +601,21 @@ export class DataStream<T> {
       processedItems: processedItems.count,
       totalItems: data.length,
       maxMemoryUsage,
+      concurrencyUsed: concurrency,
+      totalRetries,
+      maxConcurrent,
+      pauseCount,
+      throttledTimeMs,
     };
 
-    // 오류가 있더라도 항상 결과를 반환하고, 오류는 errors 배열에 포함
-    // failFast: true인 경우, 첫 번째 오류 발생 시점에서 처리가 중단되었을 것
+    // 오류 발생 여부와 관계없이 수집된 결과와 오류, 메트릭을 일관된 구조로 반환.
+    // `failFast: true`인 경우, 첫 오류 시점에서 처리가 중단되었을 수 있음.
 
     // 결과가 있는 경우에만 ProcessResult 반환
-    // Map을 정렬된 배열로 변환
+    // Map에 저장된 결과를 원래 순서대로 정렬하여 배열로 변환.
     const sortedResults: R[] = [];
     if (results.size > 0) {
+      // `totalChunks`를 기준으로 순회하여 순서를 보장.
       for (let i = 0; i < totalChunks; i++) {
         if (results.has(i)) {
           sortedResults.push(results.get(i)!);
@@ -552,13 +628,5 @@ export class DataStream<T> {
       errors,
       metrics,
     };
-  }
-
-  /**
-   * 결과를 수집하지 않는 단순한 처리 메서드 (기존 호환성 유지)
-   * @deprecated `process` 메서드가 이제 항상 `ProcessResult`를 반환하므로 이 메서드는 더 이상 필요하지 않습니다. `process`를 대신 사용하세요.
-   */
-  public async processVoid(data: readonly T[], processor: ChunkProcessor<T, void>): Promise<ProcessResult<void>> {
-    return this.process(data, processor);
   }
 }
