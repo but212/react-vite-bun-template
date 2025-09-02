@@ -40,13 +40,13 @@ bun run dev
 | `format` | Prettier로 코드 포맷팅 |
 | `clean` | 빌드 산출물 제거 |
 
-## 기여 방법
+## CI에 꼭 필요한 변수
 
-1. 저장소 포크
-2. 기능 브랜치 생성: `git checkout -b feature/amazing-feature`
-3. 변경 사항 커밋: `git commit -m 'Add amazing feature'`
-4. 브랜치 푸시: `git push origin feature/amazing-feature`
-5. Pull Request 생성
+| 변수명 | 설명 |
+|--------|-------------|
+| `VERCEL_TOKEN` | Vercel 토큰 |
+| `ORG_ID` | Vercel 조직 ID |
+| `PROJECT_ID` | Vercel 프로젝트 ID |
 
 ## 라이선스
 
