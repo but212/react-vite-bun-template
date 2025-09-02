@@ -178,8 +178,12 @@ class I18n {
   /**
    * 타입 안전한 에러 메시지 생성 헬퍼
    */
-  error(category: keyof I18nMessages['errors'], key: string, params?: Record<string, string | number>): string {
-    return this.t(`errors.${category}.${key}`, params);
+  error<C extends keyof I18nMessages['errors']>(
+    category: C,
+    key: keyof I18nMessages['errors'][C],
+    params?: Record<string, string | number>
+  ): string {
+    return this.t(`errors.${category}.${key as string}`, params);
   }
 }
 
@@ -192,8 +196,8 @@ export const setLocale = (locale: Locale) => i18n.setLocale(locale);
 export const getLocale = () => i18n.getLocale();
 
 // 에러 메시지 생성 헬퍼
-export const createErrorMessage = (
-  category: keyof I18nMessages['errors'],
-  key: string,
+export const createErrorMessage = <C extends keyof I18nMessages['errors']>(
+  category: C,
+  key: keyof I18nMessages['errors'][C],
   params?: Record<string, string | number>
 ) => i18n.error(category, key, params);
