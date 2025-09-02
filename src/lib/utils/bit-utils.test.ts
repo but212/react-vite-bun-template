@@ -159,7 +159,7 @@ describe('BitUtils', () => {
       expect(() => {
         // @ts-expect-error: 읽기 전용 속성 할당 시도
         BitUtils.MASKS.BIT_0 = 999;
-      }).toThrow('Attempted to assign to readonly property');
+      }).toThrow('Cannot assign to read only property');
     });
   });
 
@@ -330,7 +330,7 @@ describe('BitUtils', () => {
       // BitLength 타입 (1-32) 범위 확인
       expect(() => BitUtils.extractBits(0, 0, 1)).not.toThrow();
       expect(() => BitUtils.extractBits(0, 0, 32)).not.toThrow();
-      
+
       // BitPosition 타입 (0-31) 범위 확인
       expect(() => BitUtils.extractBits(0, 0, 1)).not.toThrow();
       expect(() => BitUtils.extractBits(0, 31, 1)).not.toThrow();
@@ -744,7 +744,7 @@ describe('BitUtils', () => {
 
       test('0 길이 추출', () => {
         expect(BitUtils.extractBits(0b11111111, 4, 0)).toBe(0);
-        expect(BitUtils.extractBits(0xFFFFFFFF, 0, 0)).toBe(0);
+        expect(BitUtils.extractBits(0xffffffff, 0, 0)).toBe(0);
       });
 
       test('입력 검증', () => {
