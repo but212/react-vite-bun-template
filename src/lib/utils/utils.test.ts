@@ -532,6 +532,7 @@ describe('env utility', () => {
   });
 
   test('문자열이 아닌 키는 TypeError', () => {
+    // @ts-expect-error 문자열이 아닌 키 테스트
     expect(() => getEnv(123)).toThrow(TypeError);
   });
 });
@@ -576,7 +577,7 @@ describe('object utilities', () => {
     });
 
     test('존재하지 않는 키는 무시', () => {
-      const result = pick(testObj, ['name', 'nonexistent']);
+      const result = pick(testObj, ['name', 'nonexistent'] as any);
       expect(result).toEqual({ name: 'John' });
     });
 
@@ -621,7 +622,7 @@ describe('object utilities', () => {
     });
 
     test('존재하지 않는 키는 무시', () => {
-      const result = omit(testObj, ['nonexistent']);
+      const result = omit(testObj, ['nonexistent' as any]);
       expect(result).toEqual(testObj);
     });
 
