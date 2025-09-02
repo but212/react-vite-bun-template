@@ -156,10 +156,11 @@ describe('BitUtils', () => {
     });
 
     test('마스크 불변성', () => {
+      // V8과 bun 엔진 모두에서 읽기 전용 속성 할당 시 에러 메시지가 다름
       expect(() => {
         // @ts-expect-error: 읽기 전용 속성 할당 시도
         BitUtils.MASKS.BIT_0 = 999;
-      }).toThrow('Cannot assign to read only property');
+      }).toThrow(/(Cannot assign to read only property|Attempted to assign to readonly property)/);
     });
   });
 
