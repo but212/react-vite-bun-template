@@ -1,3 +1,4 @@
+import federation from '@originjs/vite-plugin-federation';
 import tailwind from '@tailwindcss/vite';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 import react from '@vitejs/plugin-react-swc';
@@ -38,8 +39,14 @@ const viteConfig = defineConfig({
     tailwind(),
     basicSsl(),
     nodePolyfills(),
-    process.env.ANALYZE === 'true' &&
-      visualizer({ open: true, filename: 'dist/stats.html' }),
+    process.env.ANALYZE === 'true' && visualizer({ open: true, filename: 'dist/stats.html' }),
+    federation({
+      name: 'host-app',
+      remotes: {
+        // remote_app: 'http://localhost:5001/assets/remoteEntry.js',
+      },
+      shared: ['react', 'react-dom'],
+    }),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'apple-touch-icon.png'],

@@ -21,6 +21,7 @@ bun run dev
 
 - **[구조(Architecture)](./docs/architecture.md)**: 프로젝트의 전체적인 구조와 설계 원칙을 설명합니다.
 - **[개발 가이드](./docs/guides/)**: 컴포넌트, 상태 관리, 스타일링, 테스트 등 개발에 필요한 가이드를 제공합니다.
+- **[Micro-frontend 가이드](./docs/guides/micro-frontend-guide.md)**: Module Federation을 사용한 마이크로 프론트엔드 설정 방법을 안내합니다.
 - **[API 레퍼런스](./docs/api-reference/)**: 모든 유틸리티 함수에 대한 상세한 API 문서를 포함합니다.
 
 ## 사용 가능한 스크립트

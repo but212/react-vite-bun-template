@@ -1,10 +1,14 @@
 import { Link, Route, Routes } from 'react-router-dom';
 
+// import RemoteComponentLoader from './components/RemoteButton';
+
 const Home = () => {
   return (
     <main className='p-6 space-y-3'>
       <h1 className='text-3xl font-bold'>템플릿 페이지</h1>
       <p className='text-xl'>변경사항을 적용해보세요.</p>
+      <hr className='my-6' />
+      {/* <RemoteComponentLoader /> */}
     </main>
   );
 };
