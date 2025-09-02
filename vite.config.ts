@@ -38,20 +38,41 @@ const viteConfig = defineConfig({
     tailwind(),
     basicSsl(),
     nodePolyfills(),
-    visualizer({ open: true, filename: 'dist/stats.html' }),
+    process.env.ANALYZE === 'true' &&
+      visualizer({ open: true, filename: 'dist/stats.html' }),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.png'],
+      includeAssets: ['favicon.png', 'apple-touch-icon.png'],
       manifest: {
         name: 'React Vite Bun Template',
         short_name: 'ReactTemplate',
         description: 'A modern React template with Vite and Bun.',
         theme_color: '#ffffff',
+        background_color: '#ffffff',
+        display: 'standalone',
+        start_url: '/',
         icons: [
           {
-            src: 'favicon.png',
-            sizes: '64x64',
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
             type: 'image/png',
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
           },
         ],
       },

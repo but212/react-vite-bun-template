@@ -57,7 +57,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:analyze": "bun run build",
+    "build:analyze": "ANALYZE=true bun run build",
     "preview": "vite preview",
     "prepare": "husky",
     "typecheck": "tsc --noEmit",
