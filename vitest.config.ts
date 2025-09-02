@@ -12,7 +12,7 @@ export default mergeConfig(
       globals: true,
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
-      exclude: ['node_modules/**'],
+      exclude: ['node_modules/**', 'tests-e2e/**'],
       coverage: {
         provider: 'v8',
         reporter: ['text', 'json', 'html'],
@@ -26,6 +26,7 @@ export default mergeConfig(
           '**/*.test.tsx',
           '**/*.config.ts',
           '**/*.config.mjs',
+          'tests-e2e/**',
           '.eslintrc.mjs',
         ],
       },
