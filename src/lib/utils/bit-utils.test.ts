@@ -757,6 +757,203 @@ describe('BitUtils', () => {
       });
     });
 
+    describe('BitUtils 엣지 케이스', () => {
+      describe('경계값 테스트', () => {
+        test('32비트 정수 경계값 처리', () => {
+          const MAX_32BIT = 0x7fffffff;
+          const MIN_32BIT = -0x80000000;
+          const MAX_UNSIGNED_32BIT = 0xffffffff;
+
+          // 최대/최소 부호 있는 32비트 정수
+          expect(() => BitUtils.setBit(MAX_32BIT, 0)).not.toThrow();
+          expect(() => BitUtils.setBit(MIN_32BIT, 0)).not.toThrow();
+          
+          // 최대 부호 없는 32비트 정수
+          expect(() => BitUtils.setBit(MAX_UNSIGNED_32BIT, 0)).not.toThrow();
+          
+          // 범위 초과 값들
+          expect(() => BitUtils.setBit(MAX_UNSIGNED_32BIT + 1, 0)).toThrow();
+          expect(() => BitUtils.setBit(MIN_32BIT - 1, 0)).toThrow();
+        });
+
+        test('비트 위치 경계값', () => {
+          // 유효한 비트 위치 (0-31)
+          expect(() => BitUtils.setBit(0, 0)).not.toThrow();
+          expect(() => BitUtils.setBit(0, 31)).not.toThrow();
+          
+          // 무효한 비트 위치는 TypeScript 타입 시스템에서 방지됨
+          // 런타임에서는 JavaScript의 시프트 연산 특성상 모듈로 32 연산됨
+        });
+
+        test('특수 값 처리', () => {
+          // NaN, Infinity 처리
+          expect(() => BitUtils.setBit(NaN, 0)).toThrow();
+          expect(() => BitUtils.setBit(Infinity, 0)).toThrow();
+          expect(() => BitUtils.setBit(-Infinity, 0)).toThrow();
+          
+          // 부동소수점 처리 (개발 모드에서만)
+          if (import.meta.env.MODE !== 'production') {
+            expect(() => BitUtils.setBit(3.14, 0)).toThrow();
+            expect(() => BitUtils.setBit(-2.5, 0)).toThrow();
+          }
+        });
+      });
+
+      describe('메모리 및 성능 엣지 케이스', () => {
+        test('캐시 동작 검증', () => {
+          // 캐시 초기화
+          BitUtils.clearAllCaches();
+          
+          // 첫 번째 호출 (캐시 미스)
+          const result1 = BitUtils.isPowerOfTwo(1024);
+          const stats1 = BitUtils.getCacheStats();
+          
+          // 두 번째 호출 (캐시 히트)
+          const result2 = BitUtils.isPowerOfTwo(1024);
+          const stats2 = BitUtils.getCacheStats();
+          
+          expect(result1).toBe(result2);
+          expect(stats2.powerOfTwoCache.hits).toBeGreaterThan(stats1.powerOfTwoCache.hits);
+        });
+
+        test('대용량 데이터 처리', () => {
+          // 1000개의 서로 다른 값으로 테스트
+          const testValues = Array.from({ length: 1000 }, (_, i) => i * 1000 + Math.floor(Math.random() * 1000));
+          
+          const start = performance.now();
+          testValues.forEach(value => {
+            BitUtils.popCount(value);
+            BitUtils.isPowerOfTwo(value);
+            BitUtils.countLeadingZeros(value);
+            BitUtils.countTrailingZeros(value);
+          });
+          const end = performance.now();
+          
+          // 1000개 값에 대해 4개 연산이 100ms 이내에 완료되어야 함
+          expect(end - start).toBeLessThan(100);
+        });
+
+        test('캐시 히트율 최적화 검증', () => {
+          BitUtils.clearAllCaches();
+          
+          // 반복적인 값으로 캐시 효율성 테스트
+          const commonValues = [0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
+          
+          // 각 값을 여러 번 호출하여 캐시 히트율 향상
+          for (let i = 0; i < 10; i++) {
+            commonValues.forEach(value => {
+              BitUtils.isPowerOfTwo(value);
+              BitUtils.popCount(value);
+            });
+          }
+          
+          const stats = BitUtils.getCacheStats();
+          expect(stats.combinedHitRate).toBeGreaterThan(0.8); // 80% 이상 히트율
+        });
+      });
+
+      describe('복합 연산 엣지 케이스', () => {
+        test('연속 비트 조작 일관성', () => {
+          let value = 0;
+          
+          // 모든 비트를 하나씩 설정
+          for (let i = 0; i < 32; i++) {
+            value = BitUtils.setBit(value, i as any);
+            expect(BitUtils.testBit(value, i as any)).toBe(true);
+          }
+          
+          expect(value).toBe(0xffffffff);
+          expect(BitUtils.popCount(value)).toBe(32);
+          
+          // 모든 비트를 하나씩 클리어
+          for (let i = 0; i < 32; i++) {
+            value = BitUtils.clearBit(value, i as any);
+            expect(BitUtils.testBit(value, i as any)).toBe(false);
+          }
+          
+          expect(value).toBe(0);
+          expect(BitUtils.popCount(value)).toBe(0);
+        });
+
+        test('회전 연산 일관성', () => {
+          const testValue = 0b10101010101010101010101010101010;
+          
+          // 32번 왼쪽 회전하면 원래 값으로 돌아와야 함
+          let rotated = testValue;
+          for (let i = 1; i <= 31; i++) {
+            rotated = BitUtils.rotateLeft(rotated, 1);
+          }
+          rotated = BitUtils.rotateLeft(rotated, 1);
+          
+          expect(rotated).toBe(testValue);
+          
+          // 오른쪽 회전도 동일
+          rotated = testValue;
+          for (let i = 1; i <= 31; i++) {
+            rotated = BitUtils.rotateRight(rotated, 1);
+          }
+          rotated = BitUtils.rotateRight(rotated, 1);
+          
+          expect(rotated).toBe(testValue);
+        });
+
+        test('비트 추출/삽입 라운드트립', () => {
+          const originalValue = 0b11010110101101011010110101101011;
+          
+          // 8비트씩 추출하여 다시 조합
+          const byte0 = BitUtils.extractBits(originalValue, 0, 8);
+          const byte1 = BitUtils.extractBits(originalValue, 8, 8);
+          const byte2 = BitUtils.extractBits(originalValue, 16, 8);
+          const byte3 = BitUtils.extractBits(originalValue, 24, 8);
+          
+          let reconstructed = 0;
+          reconstructed = BitUtils.insertBits(reconstructed, byte0, 0, 8);
+          reconstructed = BitUtils.insertBits(reconstructed, byte1, 8, 8);
+          reconstructed = BitUtils.insertBits(reconstructed, byte2, 16, 8);
+          reconstructed = BitUtils.insertBits(reconstructed, byte3, 24, 8);
+          
+          expect(reconstructed).toBe(originalValue);
+        });
+      });
+
+      describe('플래그 연산 엣지 케이스', () => {
+        test('복잡한 플래그 조합', () => {
+          const flags = {
+            READ: 1 << 0,    // 0b00001
+            WRITE: 1 << 1,   // 0b00010
+            EXECUTE: 1 << 2, // 0b00100
+            DELETE: 1 << 3,  // 0b01000
+            ADMIN: 1 << 4,   // 0b10000
+          };
+          
+          const permissions = flags.READ | flags.WRITE | flags.EXECUTE;
+          
+          // 개별 플래그 확인
+          expect(BitUtils.hasAllFlags(permissions, flags.READ)).toBe(true);
+          expect(BitUtils.hasAllFlags(permissions, flags.WRITE)).toBe(true);
+          expect(BitUtils.hasAllFlags(permissions, flags.EXECUTE)).toBe(true);
+          expect(BitUtils.hasAllFlags(permissions, flags.DELETE)).toBe(false);
+          expect(BitUtils.hasAllFlags(permissions, flags.ADMIN)).toBe(false);
+          
+          // 복합 플래그 확인
+          expect(BitUtils.hasAllFlags(permissions, flags.READ | flags.WRITE)).toBe(true);
+          expect(BitUtils.hasAllFlags(permissions, flags.READ | flags.DELETE)).toBe(false);
+          
+          // 임의 플래그 확인
+          expect(BitUtils.hasAnyFlag(permissions, flags.DELETE | flags.ADMIN)).toBe(false);
+          expect(BitUtils.hasAnyFlag(permissions, flags.READ | flags.DELETE)).toBe(true);
+        });
+
+        test('빈 플래그 처리', () => {
+          const anyValue = 0b10101010;
+          
+          // 빈 플래그 (0)에 대한 처리
+          expect(BitUtils.hasAllFlags(anyValue, 0)).toBe(true);  // 0은 모든 조건을 만족
+          expect(BitUtils.hasAnyFlag(anyValue, 0)).toBe(false); // 0은 어떤 조건도 만족하지 않음
+        });
+      });
+    });
+
     describe('성능 테스트', () => {
       test('countLeadingZeros 성능', () => {
         const values = Array.from({ length: 10000 }, (_, i) => i + 1);

@@ -1,4 +1,5 @@
 import { AdaptiveLRUCache, type CacheStats } from './cache-strategy';
+import { createErrorMessage } from '../i18n';
 
 /**
  * 0~31까지의 비트 위치를 나타내는 타입입니다.
@@ -104,7 +105,7 @@ export function isValidBitLength(length: number): length is BitLengthWithZero {
  */
 export function createBitLength(length: number): BitLengthWithZero {
   if (!isValidBitLength(length)) {
-    throw new RangeError(`Invalid bit length: ${length}. Must be 0-32.`);
+    throw new RangeError(createErrorMessage('bitUtils', 'invalidBitLength', { method: 'createBitLength', length: String(length) }));
   }
   return length;
 }
@@ -178,16 +179,16 @@ class BitUtils {
   private static validate32Bit(x: number, methodName: string = 'BitUtils'): number {
     // 프로덕션에서도 NaN/Infinity 체크 (최소한의 안전성)
     if (!Number.isFinite(x)) {
-      throw new TypeError(`${methodName}: Input must be a finite number, got ${x}`);
+      throw new TypeError(createErrorMessage('bitUtils', 'invalidInput', { method: methodName, value: String(x) }));
     }
 
     if (this.shouldValidate()) {
       if (!Number.isInteger(x)) {
-        throw new TypeError(`${methodName}: Input must be an integer, got ${typeof x}`);
+        throw new TypeError(createErrorMessage('bitUtils', 'notInteger', { method: methodName, type: typeof x }));
       }
       // 32비트 부호 없는 정수 범위도 허용 (0 ~ 2^32-1)
       if (x < this.MIN_32BIT || x > 0xffffffff) {
-        throw new RangeError(`${methodName}: Value ${x} is outside 32-bit integer range`);
+        throw new RangeError(createErrorMessage('bitUtils', 'outOfRange', { method: methodName, value: String(x) }));
       }
     }
     return x >>> 0; // 항상 부호 없는 32비트로 변환
@@ -533,10 +534,10 @@ class BitUtils {
 
     // 음수 검증
     if (start < 0) {
-      throw new RangeError('extractBits: start must be non-negative');
+      throw new RangeError(createErrorMessage('bitUtils', 'invalidPosition', { method: 'extractBits' }));
     }
     if (length < 0) {
-      throw new RangeError('extractBits: length must be non-negative');
+      throw new RangeError(createErrorMessage('bitUtils', 'invalidPosition', { method: 'extractBits' }));
     }
 
     // 0 길이인 경우 0 반환
@@ -545,7 +546,7 @@ class BitUtils {
     }
 
     if (start + length > 32) {
-      throw new RangeError('extractBits: start + length must not exceed 32');
+      throw new RangeError(createErrorMessage('bitUtils', 'extractBitsRange', { method: 'extractBits' }));
     }
 
     // 32비트 전체를 추출하는 경우 특별 처리
@@ -596,11 +597,11 @@ class BitUtils {
 
     // 런타임에서도 타입 안전성 보장
     if (!isValidBitLength(length)) {
-      throw new RangeError(`insertBits: Invalid length ${length}. Use createBitLength() for type-safe values.`);
+      throw new RangeError(createErrorMessage('bitUtils', 'invalidBitLength', { method: 'insertBits', length: String(length) }));
     }
 
     if (start + length > 32) {
-      throw new RangeError('insertBits: start + length must not exceed 32');
+      throw new RangeError(createErrorMessage('bitUtils', 'insertBitsRange', { method: 'insertBits' }));
     }
 
     // length가 0이면 아무것도 삽입하지 않음
