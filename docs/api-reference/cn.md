@@ -34,7 +34,7 @@ export function cn(...inputs: ClassValue[]): string;
 ```tsx
 import { cn } from '@/lib/utils/cn';
 
-<div className={cn('font-bold', 'text-lg', 'mt-4')} />
+<div className={cn('font-bold', 'text-lg', 'mt-4')} />;
 // 결과: "font-bold text-lg mt-4"
 ```
 
@@ -49,7 +49,7 @@ const hasError = false;
     'active-class': isActive,
     'error-class': hasError,
   })}
-/>
+/>;
 // 결과: "base-class active-class"
 ```
 

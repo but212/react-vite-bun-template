@@ -1,8 +1,10 @@
-import { createRoot } from 'react-dom/client';
-import App from './App.tsx';
+import { ApolloProvider } from '@apollo/client';
 import { StrictMode } from 'react';
-import './styles/main.css';
+import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import App from './App.tsx';
+import { client } from './lib/apollo';
+import './styles/main.css';
 
 const root = document.getElementById('root');
 if (!root) {
@@ -11,8 +13,10 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <ApolloProvider client={client}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </ApolloProvider>
   </StrictMode>
 );

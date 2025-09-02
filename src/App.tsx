@@ -1,8 +1,10 @@
 import { Link, Route, Routes } from 'react-router-dom';
 
+import Launches from './components/Launches';
+
 const Home = () => {
   return (
-    <main className='p-6 space-y-3'>
+    <main className='container mx-auto p-4'>
       <h1 className='text-3xl font-bold'>템플릿 페이지</h1>
       <p className='text-xl'>변경사항을 적용해보세요.</p>
     </main>
@@ -31,10 +33,14 @@ const App = () => {
           <Link className='font-semibold' to='/'>
             홈
           </Link>
+          <Link className='font-semibold' to='/graphql'>
+            GraphQL
+          </Link>
         </nav>
       </header>
       <Routes>
         <Route path='/' element={<Home />} />
+        <Route path='/graphql' element={<Launches />} />
         <Route path='*' element={<NotFound />} />
       </Routes>
     </div>

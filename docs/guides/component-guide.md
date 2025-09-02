@@ -30,12 +30,7 @@ export function Button({ className, variant, ...props }: ButtonProps) {
     secondary: 'bg-gray-200 text-black',
   };
 
-  return (
-    <button
-      className={cn(baseClasses, variant && variantClasses[variant], className)}
-      {...props}
-    />
-  );
+  return <button className={cn(baseClasses, variant && variantClasses[variant], className)} {...props} />;
 }
 ```
 

@@ -322,10 +322,10 @@ export class PerformanceBenchmark {
 
     try {
       const result = await fn();
-      
+
       // 함수 실행 후 최소 한 번의 샘플링을 보장
       await new Promise(resolve => setTimeout(resolve, samplingInterval));
-      
+
       return {
         result,
         memoryProfile,

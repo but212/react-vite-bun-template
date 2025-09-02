@@ -105,7 +105,9 @@ export function isValidBitLength(length: number): length is BitLengthWithZero {
  */
 export function createBitLength(length: number): BitLengthWithZero {
   if (!isValidBitLength(length)) {
-    throw new RangeError(createErrorMessage('bitUtils', 'invalidBitLength', { method: 'createBitLength', length: String(length) }));
+    throw new RangeError(
+      createErrorMessage('bitUtils', 'invalidBitLength', { method: 'createBitLength', length: String(length) })
+    );
   }
   return length;
 }
@@ -597,7 +599,9 @@ class BitUtils {
 
     // 런타임에서도 타입 안전성 보장
     if (!isValidBitLength(length)) {
-      throw new RangeError(createErrorMessage('bitUtils', 'invalidBitLength', { method: 'insertBits', length: String(length) }));
+      throw new RangeError(
+        createErrorMessage('bitUtils', 'invalidBitLength', { method: 'insertBits', length: String(length) })
+      );
     }
 
     if (start + length > 32) {

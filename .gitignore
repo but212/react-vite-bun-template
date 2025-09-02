@@ -152,3 +152,11 @@ bun.lock
 .cache/bun-*
 bunfig.local.toml
 bun-out/
+
+*storybook.log
+storybook-static
+
+test-results/
+playwright-report/
+playwright-report.json
+playwright-report.html

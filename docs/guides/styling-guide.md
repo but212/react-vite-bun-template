@@ -46,13 +46,10 @@ export default {
 import { cn } from '@/lib/utils/cn';
 
 function Alert({ isError, children }) {
-  const alertClasses = cn(
-    'p-4 rounded-md',
-    {
-      'bg-red-100 text-red-800': isError,
-      'bg-blue-100 text-blue-800': !isError,
-    }
-  );
+  const alertClasses = cn('p-4 rounded-md', {
+    'bg-red-100 text-red-800': isError,
+    'bg-blue-100 text-blue-800': !isError,
+  });
 
   return <div className={alertClasses}>{children}</div>;
 }

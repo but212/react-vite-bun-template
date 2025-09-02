@@ -28,12 +28,12 @@ export interface CacheStrategy<K, V> {
 
 ```typescript
 export interface CacheStats {
-  hits: number;        // 캐시 히트 횟수
-  misses: number;      // 캐시 미스 횟수
-  hitRate: number;     // 히트율 (0-1)
-  evictions: number;   // 제거된 항목 수
+  hits: number; // 캐시 히트 횟수
+  misses: number; // 캐시 미스 횟수
+  hitRate: number; // 히트율 (0-1)
+  evictions: number; // 제거된 항목 수
   lastCleanup: number; // 마지막 정리 시각 (타임스탬프)
-  cacheSize: number;   // 현재 캐시 크기
+  cacheSize: number; // 현재 캐시 크기
 }
 ```
 

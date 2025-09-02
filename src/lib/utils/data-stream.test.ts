@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { 
+import {
   AdaptiveConcurrencyStrategy,
   DataStream,
   ExponentialBackoffRetryStrategy,
