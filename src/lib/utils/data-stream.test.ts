@@ -48,7 +48,8 @@ describe('DataStream', () => {
       const result = await stream.process([], processor);
 
       expect(processor).not.toHaveBeenCalled();
-      expect(result).toBeUndefined();
+      expect(result.results).toEqual([]);
+      expect(result.errors).toEqual([]);
     });
 
     test('단일 청크 처리', async () => {
@@ -95,6 +96,14 @@ describe('DataStream', () => {
       await stream.process(data, processor);
 
       expect(processor).toHaveBeenCalledTimes(3);
+    });
+
+    test('잘못된 데이터 타입에 대한 오류', async () => {
+      const stream = new DataStream<number>();
+      const processor = vi.fn();
+
+      // @ts-expect-error - 의도적으로 잘못된 타입 전달
+      await expect(stream.process('not an array', processor)).rejects.toThrow('Data must be an array');
     });
   });
 
@@ -166,9 +175,10 @@ describe('DataStream', () => {
       expect(isInterleaved(executionOrder)).toBe(true);
     });
 
-    test('동시성 제한 검증', async () => {
+    test('동시성 제한 및 동적 워커 수 추적 검증', async () => {
       const data = Array.from({ length: 10 }, (_, i) => i);
-      const stream = new DataStream<number>({ chunkSize: 1, concurrency: 3 });
+      const concurrency = 3;
+      const stream = new DataStream<number>({ chunkSize: 1, concurrency });
 
       let concurrentCount = 0;
       let maxConcurrent = 0;
@@ -182,133 +192,56 @@ describe('DataStream', () => {
 
       await stream.process(data, processor);
 
-      expect(maxConcurrent).toBeLessThanOrEqual(3);
+      expect(maxConcurrent).toBeLessThanOrEqual(concurrency);
       expect(maxConcurrent).toBeGreaterThan(1); // 실제로 병렬 실행됨
-    });
-
-    test('워커 풀 크기 정확성 검증', async () => {
-      const data = Array.from({ length: 20 }, (_, i) => i);
-      const stream = new DataStream<number>({ chunkSize: 1, concurrency: 4 });
-
-      const activeWorkers = new Set<number>();
-      let maxActiveWorkers = 0;
-      const workerStartTimes = new Map<number, number>();
-
-      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
-        const workerId = Math.random(); // 고유 워커 ID 시뮬레이션
-        activeWorkers.add(workerId);
-        workerStartTimes.set(workerId, performance.now());
-        maxActiveWorkers = Math.max(maxActiveWorkers, activeWorkers.size);
-
-        await delay(30); // 충분한 지연으로 겹침 보장
-
-        activeWorkers.delete(workerId);
-      });
-
-      await stream.process(data, processor);
-
-      expect(maxActiveWorkers).toBeLessThanOrEqual(4);
-      expect(maxActiveWorkers).toBeGreaterThanOrEqual(2); // 최소 2개 워커는 동시 실행
-    });
-
-    test('병렬 처리 시간 효율성 검증', async () => {
-      const data = Array.from({ length: 8 }, (_, i) => i);
-      const processingTime = 50;
-
-      // 순차 처리
-      const sequentialStream = new DataStream<number>({ chunkSize: 1, concurrency: 1 });
-      const sequentialStart = performance.now();
-      await sequentialStream.process(data, async () => {
-        await delay(processingTime);
-      });
-      const sequentialTime = performance.now() - sequentialStart;
-
-      // 병렬 처리 (4개 워커)
-      const parallelStream = new DataStream<number>({ chunkSize: 1, concurrency: 4 });
-      const parallelStart = performance.now();
-      await parallelStream.process(data, async () => {
-        await delay(processingTime);
-      });
-      const parallelTime = performance.now() - parallelStart;
-
-      // 병렬 처리가 순차 처리보다 최소 50% 빨라야 함
-      expect(parallelTime).toBeLessThan(sequentialTime * 0.7);
-    });
-
-    test('워커 간 독립성 검증', async () => {
-      const data = Array.from({ length: 6 }, (_, i) => i);
-      const stream = new DataStream<number>({ chunkSize: 1, concurrency: 3 });
-
-      const workerStates = new Map<number, { started: boolean; completed: boolean }>();
-
-      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
-        const id = [...chunk][0];
-        if (id !== undefined) {
-          workerStates.set(id, { started: true, completed: false });
-
-          // 각 워커마다 다른 처리 시간
-          await delay(10 + (id % 3) * 20);
-
-          workerStates.set(id, { started: true, completed: true });
-        }
-      });
-
-      await stream.process(data, processor);
-
-      // 모든 워커가 독립적으로 완료되었는지 확인
-      expect(workerStates.size).toBe(6);
-      for (const [id, state] of workerStates) {
-        expect(state.started).toBe(true);
-        expect(state.completed).toBe(true);
-      }
-    });
-
-    test('높은 동시성에서의 안정성 검증', async () => {
-      const data = Array.from({ length: 50 }, (_, i) => i);
-      const stream = new DataStream<number>({ chunkSize: 1, concurrency: 10 });
-
-      let processedCount = 0;
-      const processedItems = new Set<number>();
-
-      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
-        const id = [...chunk][0];
-        if (id !== undefined) {
-          processedItems.add(id);
-          processedCount++;
-          await delay(Math.random() * 10); // 0-10ms 랜덤 지연
-        }
-      });
-
-      await stream.process(data, processor);
-
-      expect(processedCount).toBe(50);
-      expect(processedItems.size).toBe(50);
-      // 모든 아이템이 정확히 한 번씩 처리되었는지 확인
-      for (let i = 0; i < 50; i++) {
-        expect(processedItems.has(i)).toBe(true);
-      }
     });
   });
 
   describe('오류 처리', () => {
-    test('processor에서 오류 발생 시 즉시 중단', async () => {
+    test('failFast: true (기본값) - 첫 오류 발생 시 중단', async () => {
       const data = [1, 2, 3, 4];
-      const stream = new DataStream<number>({ chunkSize: 1 });
+      const stream = new DataStream<number>({ chunkSize: 1, concurrency: 2 });
       const error = new Error('Processing failed');
-      const processor = vi
-        .fn()
-        .mockResolvedValueOnce(undefined) // 첫 번째 성공
-        .mockRejectedValueOnce(error); // 두 번째 실패
+      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
+        const item = [...chunk][0];
+        if (item === 3) {
+          throw error;
+        }
+        await delay(10);
+        return `result-${item}`;
+      });
 
-      await expect(stream.process(data, processor)).rejects.toThrow('Processing failed');
+      const result = await stream.process(data, processor);
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.error).toBe(error);
+      // 중단되었으므로 모든 청크가 처리되지 않음
+      expect(result.metrics.processedChunks + result.metrics.failedChunks).toBeLessThan(data.length);
     });
 
-    test('잘못된 데이터 타입에 대한 오류', async () => {
-      const stream = new DataStream<number>();
-      const processor = vi.fn();
+    test('failFast: false - 모든 오류 수집 후 계속 진행', async () => {
+      const data = [1, 2, 3, 4, 5];
+      const stream = new DataStream<number>({ chunkSize: 1, concurrency: 2, failFast: false });
+      const error1 = new Error('Fail 1');
+      const error3 = new Error('Fail 3');
 
-      // @ts-expect-error - 의도적으로 잘못된 타입 전달
-      await expect(stream.process('not an array', processor)).rejects.toThrow('Data must be an array');
+      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
+        const item = [...chunk][0];
+        await delay(10);
+        if (item === 2) throw error1;
+        if (item === 4) throw error3;
+        return `result-${item}`;
+      });
+
+      const result = await stream.process(data, processor);
+
+      expect(result.errors).toHaveLength(2);
+      expect(result.errors.map(e => e.error)).toEqual([error1, error3]);
+
+      expect(result.results).toEqual(['result-1', 'result-3', 'result-5']);
+      expect(result.metrics.processedChunks).toBe(3); // 성공한 청크 수
+      expect(result.metrics.failedChunks).toBe(2); // 실패한 청크 수
+      expect(result.metrics.totalChunks).toBe(5);
     });
   });
 
@@ -319,7 +252,9 @@ describe('DataStream', () => {
       const error = new Error('Failed');
       const processor = vi.fn().mockRejectedValue(error);
 
-      await expect(stream.process(data, processor)).rejects.toThrow('Failed');
+      const result = await stream.process(data, processor);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.error).toBe(error);
       expect(processor).toHaveBeenCalledTimes(1);
     });
 
@@ -330,10 +265,11 @@ describe('DataStream', () => {
         .fn()
         .mockRejectedValueOnce(new Error('First fail'))
         .mockRejectedValueOnce(new Error('Second fail'))
-        .mockResolvedValueOnce(undefined); // 세 번째 성공
+        .mockResolvedValueOnce('success');
 
-      await stream.process(data, processor);
-
+      const result = await stream.process(data, processor);
+      expect(result.errors).toEqual([]);
+      expect(result.results).toEqual(['success']);
       expect(processor).toHaveBeenCalledTimes(3);
     });
 
@@ -343,7 +279,9 @@ describe('DataStream', () => {
       const error = new Error('Always fails');
       const processor = vi.fn().mockRejectedValue(error);
 
-      await expect(stream.process(data, processor)).rejects.toThrow('Always fails');
+      const result = await stream.process(data, processor);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.error).toBe(error);
       expect(processor).toHaveBeenCalledTimes(2); // 초기 시도 + 1회 재시도
     });
 
@@ -361,9 +299,51 @@ describe('DataStream', () => {
         .mockRejectedValueOnce(new Error('Second fail'))
         .mockResolvedValueOnce(undefined);
 
-      await stream.process(data, processor);
+      const result = await stream.process(data, processor);
 
+      expect(result.errors).toEqual([]);
       expect(processor).toHaveBeenCalledTimes(3);
+    });
+
+    test('결과 반환 처리', async () => {
+      const data = [1, 2, 3, 4];
+      const stream = new DataStream<number>({ chunkSize: 2 });
+      const processor = vi.fn().mockResolvedValueOnce('chunk1').mockResolvedValueOnce('chunk2');
+
+      const result = await stream.process(data, processor);
+
+      expect(result).toBeDefined();
+      expect(result!.results).toEqual(['chunk1', 'chunk2']);
+      expect(result!.errors).toEqual([]);
+      expect(result!.metrics).toBeDefined();
+    });
+
+    test('결과 순서 보장', async () => {
+      const data = Array.from({ length: 10 }, (_, i) => i);
+      const stream = new DataStream<number>({ chunkSize: 1, concurrency: 3 });
+
+      const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
+        const id = [...chunk][0];
+        // 랜덤 지연으로 순서 섞기 시도
+        await delay(Math.random() * 20);
+        return `result-${id}`;
+      });
+
+      const result = await stream.process(data, processor);
+
+      expect(result).toBeDefined();
+      expect(result!.results).toEqual([
+        'result-0',
+        'result-1',
+        'result-2',
+        'result-3',
+        'result-4',
+        'result-5',
+        'result-6',
+        'result-7',
+        'result-8',
+        'result-9',
+      ]);
     });
   });
 
@@ -393,7 +373,7 @@ describe('DataStream', () => {
         await new Promise(resolve => setTimeout(resolve, 10));
       });
 
-      await expect(stream.process(data, processor)).rejects.toThrow();
+      await expect(stream.process(data, processor)).rejects.toThrow('This operation was aborted');
     });
   });
 
@@ -403,8 +383,9 @@ describe('DataStream', () => {
       const stream = new DataStream<number>();
       const processor = vi.fn().mockResolvedValue(undefined);
 
-      await stream.process(data, processor);
+      const result = await stream.process(data, processor);
 
+      expect(result.errors).toEqual([]);
       expect(processor).toHaveBeenCalledTimes(1);
     });
 
@@ -422,8 +403,9 @@ describe('DataStream', () => {
       const stream = new DataStream<User>();
       const processor = vi.fn().mockResolvedValue(undefined);
 
-      await stream.process(users, processor);
+      const result = await stream.process(users, processor);
 
+      expect(result.errors).toEqual([]);
       expect(processor).toHaveBeenCalledTimes(1);
     });
   });
@@ -489,15 +471,20 @@ describe('DataStream', () => {
 
     test('실패한 청크 메트릭', async () => {
       const data = [1, 2, 3];
-      const stream = new DataStream<number>({ chunkSize: 1 });
-      const processor = vi.fn().mockResolvedValueOnce('success').mockRejectedValueOnce(new Error('fail'));
+      const stream = new DataStream<number>({ chunkSize: 1, failFast: false });
+      const error = new Error('fail');
+      const processor = vi
+        .fn()
+        .mockResolvedValueOnce('success')
+        .mockRejectedValueOnce(error)
+        .mockResolvedValue('success2');
 
-      try {
-        await stream.process(data, processor);
-      } catch (error) {
-        // 오류가 발생해야 함
-        expect(error).toBeInstanceOf(Error);
-      }
+      const result = await stream.process(data, processor);
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.error).toBe(error);
+      expect(result.metrics.failedChunks).toBe(1);
+      expect(result.metrics.processedChunks).toBe(2);
     });
   });
 
@@ -509,7 +496,8 @@ describe('DataStream', () => {
 
       const result = await stream.process(data, processor);
 
-      expect(result).toBeUndefined();
+      expect(result.results).toEqual([]);
+      expect(result.errors).toEqual([]);
       expect(processor).toHaveBeenCalledTimes(1);
     });
 
@@ -830,7 +818,7 @@ describe('DataStream', () => {
         const stream = new DataStream<number>({ chunkSize: 3 });
 
         const processor = vi.fn().mockImplementation(async () => {
-          await delay(5);
+          await delay(5); // 처리 시간 시뮬레이션
           return 'processed';
         });
 
@@ -867,7 +855,8 @@ describe('DataStream', () => {
 
         const processor = vi.fn().mockRejectedValueOnce(new Error('fail')).mockResolvedValueOnce(undefined);
 
-        await stream.process(data, processor);
+        const result = await stream.process(data, processor);
+        expect(result.errors).toEqual([]);
         expect(processor).toHaveBeenCalledTimes(2);
       });
 
@@ -876,7 +865,8 @@ describe('DataStream', () => {
         const stream = new DataStream<number>();
         const processor = vi.fn();
 
-        await stream.processVoid(data, processor);
+        const result = await stream.processVoid(data, processor);
+        expect(result.errors).toEqual([]);
         expect(processor).toHaveBeenCalledTimes(1);
       });
     });

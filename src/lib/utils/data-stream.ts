@@ -206,6 +206,12 @@ export interface DataStreamOptions {
   concurrencyStrategy?: ConcurrencyStrategy;
   backpressureCallback?: BackpressureCallback;
   /**
+   * true일 경우, 첫 오류 발생 시 즉시 처리를 중단합니다.
+   * false일 경우, 오류가 발생해도 모든 청크 처리를 시도하고 모든 오류를 수집합니다.
+   * @defaultValue true
+   */
+  failFast?: boolean;
+  /**
    * 청크 처리 실패 시 최대 재시도 횟수입니다.
    * @defaultValue 0 (재시도 없음)
    * @deprecated retryStrategy 사용 권장
@@ -340,11 +346,13 @@ export class DataStream<T> {
   private readonly retryStrategy: RetryStrategy;
   private readonly concurrencyStrategy: ConcurrencyStrategy;
   private readonly memoryMonitor: MemoryMonitor;
+  private readonly failFast: boolean;
 
   constructor(options: DataStreamOptions = {}) {
     this.chunkSize = options.chunkSize ?? 1024;
     this.onProgress = options.onProgress;
     this.signal = options.signal;
+    this.failFast = options.failFast ?? true;
 
     // 레거시 옵션 지원하면서 새로운 전략 패턴 우선 사용
     this.retryStrategy =
@@ -408,9 +416,9 @@ export class DataStream<T> {
    *
    * @param data 전체 데이터 배열 (readonly로 원본 데이터 보호)
    * @param processor 각 청크를 처리하는 함수
-   * @returns 처리 결과와 오류 정보 (void 타입인 경우 undefined)
+   * @returns 처리 결과와 오류 정보
    */
-  public async process<R>(data: readonly T[], processor: ChunkProcessor<T, R>): Promise<ProcessResult<R> | undefined> {
+  public async process<R>(data: readonly T[], processor: ChunkProcessor<T, R>): Promise<ProcessResult<R>> {
     this.signal?.throwIfAborted();
 
     if (!Array.isArray(data)) throw new TypeError('Data must be an array');
@@ -429,66 +437,78 @@ export class DataStream<T> {
     const results = new Map<number, R>(); // sparse array 대신 Map 사용
     const errors: Array<{ chunkIndex: number; error: unknown }> = [];
     const chunkTimes: number[] = [];
+    let activeWorkerCount = 0;
+
+    // 단일 청크 처리 로직
+    const processSingleChunk = async (chunkIndex: number) => {
+      const start = chunkIndex * this.chunkSize;
+      const end = Math.min(start + this.chunkSize, data.length);
+      const chunk = new ChunkViewImpl(data, start, end);
+
+      const chunkStartTime = performance.now();
+      try {
+        const result = await this.processChunkWithRetry(chunk, processor, internalSignal);
+
+        if (result !== undefined) {
+          results.set(chunkIndex, result);
+        }
+
+        processedItems.count += chunk.length;
+        if (this.onProgress) {
+          const progress = data.length === 0 ? 1 : Math.min(1, processedItems.count / data.length);
+          this.onProgress(progress, processedItems.count, data.length);
+        }
+
+        chunkTimes.push(performance.now() - chunkStartTime);
+      } catch (err) {
+        if (!internalSignal.aborted) {
+          errors.push({ chunkIndex, error: err });
+          if (this.failFast) {
+            internalController.abort();
+          }
+        }
+        // failFast 모드에서는 오류 발생 시 즉시 반환하여 루프 중단에 기여
+        if (this.failFast) {
+          throw err; // worker의 catch 블록으로 전파
+        }
+      }
+    };
 
     // 동시 워커 풀 구현
     const worker = async () => {
       while (true) {
-        // 메모리 사용량 체크 및 백프레셔 제어
+        // 외부 또는 내부 신호에 의해 중단되었는지 확인
+        if (internalSignal.aborted) break;
+
+        // 백프레셔 확인
         const currentMemoryUsage = this.memoryMonitor.getMemoryUsage();
         maxMemoryUsage = Math.max(maxMemoryUsage, currentMemoryUsage);
 
-        const activeWorkers = concurrency; // 현재 활성 워커 수 (간소화)
-        if (await this.concurrencyStrategy.shouldPause(activeWorkers, currentMemoryUsage)) {
+        if (await this.concurrencyStrategy.shouldPause(activeWorkerCount, currentMemoryUsage)) {
           await new Promise(resolve => setTimeout(resolve, 100)); // 100ms 대기
           continue;
         }
 
-        // 외부 및 내부 중단 신호 확인
-        this.signal?.throwIfAborted();
-        if (internalSignal.aborted) {
-          // 내부 중단 신호는 다른 워커의 오류로 인한 것이므로 조용히 종료
-          break;
-        }
-
+        // 다음 청크 인덱스 가져오기
         const myIndex = chunkIndex++;
         if (myIndex >= totalChunks) break;
 
-        const start = myIndex * this.chunkSize;
-        const end = Math.min(start + this.chunkSize, data.length);
-        const chunk = new ChunkViewImpl(data, start, end);
-
-        const chunkStartTime = performance.now();
+        activeWorkerCount++;
         try {
-          const result = await this.processChunkWithRetry(chunk, processor, internalSignal);
+          await processSingleChunk(myIndex);
 
-          // 결과가 void가 아닌 경우에만 수집
-          if (result !== undefined) {
-            results.set(myIndex, result);
+          // 10청크마다 이벤트루프 양보 (GC/UI 응답성 보장)
+          if ((myIndex + 1) % 10 === 0) {
+            await new Promise(resolve => setImmediate(resolve));
           }
-
-          // 원자적 진행률 업데이트 (아이템 단위)
-          processedItems.count += chunk.length;
-          if (this.onProgress) {
-            const progress = data.length === 0 ? 1 : Math.min(1, processedItems.count / data.length);
-            this.onProgress(progress, processedItems.count, data.length);
-          }
-
-          chunkTimes.push(performance.now() - chunkStartTime);
         } catch (err) {
-          // 내부 중단 신호로 인한 오류가 아닌 경우에만 오류로 처리
-          if (!internalSignal.aborted) {
-            errors.push({ chunkIndex: myIndex, error: err });
-            // 첫 번째 오류 발생 시 다른 워커들에게 즉시 중단 신호 전송
-            if (errors.length === 1) {
-              internalController.abort();
-            }
+          // processSingleChunk에서 failFast:true로 오류가 전파된 경우 루프 중단
+          if (this.failFast) {
+            break;
           }
-          break;
-        }
-
-        // 10청크마다 이벤트루프 양보 (GC/UI 응답성 보장)
-        if ((myIndex + 1) % 10 === 0) {
-          await new Promise(resolve => setImmediate(resolve));
+          // failFast:false인 경우, 오류는 이미 수집되었으므로 계속 진행
+        } finally {
+          activeWorkerCount--;
         }
       }
     };
@@ -497,53 +517,48 @@ export class DataStream<T> {
     const workers = Array.from({ length: concurrency }, () => worker());
     await Promise.all(workers);
 
-    const totalTime = performance.now() - startTime;
+    if (this.signal?.aborted) {
+      throw new DOMException('This operation was aborted', 'AbortError');
+    }
 
-    // 메트릭 계산
+    const endTime = performance.now();
     const metrics: StreamMetrics = {
       totalChunks,
       processedChunks: chunkTimes.length,
       failedChunks: errors.length,
       averageChunkTime: chunkTimes.length > 0 ? chunkTimes.reduce((a, b) => a + b, 0) / chunkTimes.length : 0,
-      totalTime,
+      totalTime: endTime - startTime,
       processedItems: processedItems.count,
       totalItems: data.length,
       maxMemoryUsage,
     };
 
-    // 오류가 있으면 첫 번째 오류를 던짐
-    if (errors.length > 0) {
-      const firstError = errors[0]?.error;
-      if (firstError instanceof Error && errors.length > 1) {
-        firstError.message += ` (and ${errors.length - 1} more errors)`;
-      }
-      throw firstError;
-    }
+    // 오류가 있더라도 항상 결과를 반환하고, 오류는 errors 배열에 포함
+    // failFast: true인 경우, 첫 번째 오류 발생 시점에서 처리가 중단되었을 것
 
     // 결과가 있는 경우에만 ProcessResult 반환
+    // Map을 정렬된 배열로 변환
+    const sortedResults: R[] = [];
     if (results.size > 0) {
-      // Map을 정렬된 배열로 변환
-      const sortedResults: R[] = [];
       for (let i = 0; i < totalChunks; i++) {
         if (results.has(i)) {
           sortedResults.push(results.get(i)!);
         }
       }
-
-      return {
-        results: sortedResults,
-        errors,
-        metrics,
-      };
     }
 
-    return undefined;
+    return {
+      results: sortedResults,
+      errors,
+      metrics,
+    };
   }
 
   /**
    * 결과를 수집하지 않는 단순한 처리 메서드 (기존 호환성 유지)
+   * @deprecated `process` 메서드가 이제 항상 `ProcessResult`를 반환하므로 이 메서드는 더 이상 필요하지 않습니다. `process`를 대신 사용하세요.
    */
-  public async processVoid(data: readonly T[], processor: ChunkProcessor<T, void>): Promise<void> {
-    await this.process(data, processor);
+  public async processVoid(data: readonly T[], processor: ChunkProcessor<T, void>): Promise<ProcessResult<void>> {
+    return this.process(data, processor);
   }
 }
