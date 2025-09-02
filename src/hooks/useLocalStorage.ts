@@ -25,8 +25,7 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, Dispatch<S
     try {
       const item = window.localStorage.getItem(key);
       return item ? (JSON.parse(item) as T) : initialValue;
-    } catch (error) {
-      console.error(`Error reading localStorage key "${key}":`, error);
+    } catch {
       return initialValue;
     }
   });
@@ -34,8 +33,8 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, Dispatch<S
   useEffect(() => {
     try {
       window.localStorage.setItem(key, JSON.stringify(storedValue));
-    } catch (error) {
-      console.error(`Error setting localStorage key "${key}":`, error);
+    } catch {
+      // Fail silently if localStorage is unavailable or quota exceeded
     }
   }, [key, storedValue]);
 
@@ -46,8 +45,8 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, Dispatch<S
       }
       try {
         setStoredValue(e.newValue ? (JSON.parse(e.newValue) as T) : initialValue);
-      } catch (error) {
-        console.error(`Error parsing storage event value for key "${key}":`, error);
+      } catch {
+        // Fail silently if localStorage is unavailable or quota exceeded
       }
     };
 
