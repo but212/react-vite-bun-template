@@ -1,6 +1,5 @@
 import federation from '@originjs/vite-plugin-federation';
 import tailwind from '@tailwindcss/vite';
-import basicSsl from '@vitejs/plugin-basic-ssl';
 import react from '@vitejs/plugin-react-swc';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig, mergeConfig } from 'vite';
@@ -37,7 +36,6 @@ const viteConfig = defineConfig({
     tsconfigPaths(),
     react(),
     tailwind(),
-    basicSsl(),
     nodePolyfills(),
     process.env.ANALYZE === 'true' && visualizer({ open: true, filename: 'dist/stats.html' }),
     federation({

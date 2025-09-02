@@ -11,9 +11,11 @@ bun create but212/react-vite-bun-template my-project
 # 의존성 설치
 bun install
 
-# 개발 서버 시작 (HTTPS 지원)
+# 개발 서버 시작
 bun run dev
 ```
+
+개발 서버는 `http://localhost:3000`에서 실행됩니다.
 
 ## 문서
 
