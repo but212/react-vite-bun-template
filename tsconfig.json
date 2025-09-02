@@ -8,7 +8,9 @@
     "jsx": "react-jsx",
     "jsxImportSource": "react",
     "allowJs": true,
-    "types": ["vite/client"],
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["vite/client", "vitest/globals", "vitest/importMeta", "@testing-library/jest-dom"],
     "erasableSyntaxOnly": true,
     "strictPropertyInitialization": true,
 
@@ -33,6 +35,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*", "vite.config.ts"],
+  "include": ["src", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"],
   "exclude": ["node_modules", "dist"]
 }
