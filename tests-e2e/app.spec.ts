@@ -38,7 +38,7 @@ test('should navigate to the GraphQL page and display launches', async ({ page }
 
   // "SpaceX Launches"라는 텍스트가 포함된 h2 태그가 있는지 확인
   // API 응답 시간을 고려하여 timeout을 15초로 설정
-  await expect(page.locator('h2')).toContainText('SpaceX Launches', { timeout: 15000 });
+  await expect(page.locator('h2')).toContainText('SpaceX Launches');
 });
 
 // 404 페이지 테스트
