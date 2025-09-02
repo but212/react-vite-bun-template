@@ -3,6 +3,7 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
 import react from '@vitejs/plugin-react-swc';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig, mergeConfig } from 'vite';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import { VitePWA } from 'vite-plugin-pwa';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig as defineVitestConfig } from 'vitest/config';
@@ -36,6 +37,7 @@ const viteConfig = defineConfig({
     react(),
     tailwind(),
     basicSsl(),
+    nodePolyfills(),
     visualizer({ open: true, filename: 'dist/stats.html' }),
     VitePWA({
       registerType: 'autoUpdate',
