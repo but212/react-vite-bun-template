@@ -2,8 +2,6 @@
 
 Vite, TypeScript, Bun 런타임으로 구축된 최신, 프로덕션 준비 완료 리액트 템플릿입니다. 포괄적인 테스트, CI/CD, 배포 구성을 제공합니다.
 
-[docs/project.md](docs/project.md)와 [docs/retrospect.md](docs/retrospect.md)에 계획 및 과정을 기록해두었습니다.
-
 ## 빠른 시작
 
 ```bash
@@ -162,7 +160,76 @@ bun run preview
 
 - `BitUtils`: `src/lib/utils/bit-utils.ts`
 
-자세한 예시는 [docs/retrospect.md](docs/retrospect.md#유틸-함수-요약-표)에서 확인하세요.
+## 커스텀 훅 (Custom Hooks)
+
+`src/hooks` 디렉터리에서 재사용 가능한 커스텀 훅을 관리합니다.
+
+### `useDebounce`
+
+값의 변경을 일정 시간 지연시켜, 불필요한 렌더링이나 API 호출을 방지합니다.
+
+```tsx
+import { useDebounce } from '@/hooks';
+
+const [searchTerm, setSearchTerm] = useState('');
+const debouncedSearchTerm = useDebounce(searchTerm, 500);
+
+useEffect(() => {
+  // debouncedSearchTerm이 500ms 동안 변경되지 않았을 때 API 호출
+  if (debouncedSearchTerm) {
+    // searchAPI(debouncedSearchTerm);
+  }
+}, [debouncedSearchTerm]);
+```
+
+### `useToggle`
+
+`boolean` 상태를 쉽게 토글할 수 있는 함수를 제공합니다.
+
+```tsx
+import { useToggle } from '@/hooks';
+
+const [isOpen, toggleOpen] = useToggle(false);
+
+return (
+  <>
+    <button onClick={toggleOpen}>
+      {isOpen ? 'Close' : 'Open'}
+    </button>
+    {isOpen && <div>Content</div>}
+  </>
+);
+```
+
+### `useLocalStorage`
+
+상태를 브라우저의 `localStorage`와 동기화하여 데이터를 영속적으로 저장합니다.
+
+```tsx
+import { useLocalStorage } from '@/hooks';
+
+const [theme, setTheme] = useLocalStorage('theme', 'light');
+
+const toggleTheme = () => {
+  setTheme(theme === 'light' ? 'dark' : 'light');
+};
+```
+
+### `useMediaQuery`
+
+CSS 미디어 쿼리의 충족 여부를 추적하여 반응형 UI를 구현할 때 유용합니다.
+
+```tsx
+import { useMediaQuery } from '@/hooks';
+
+const isDesktop = useMediaQuery('(min-width: 1024px)');
+
+return (
+  <div>
+    {isDesktop ? '데스크톱 뷰' : '모바일 뷰'}
+  </div>
+);
+```
 
 ## CI/CD
 
