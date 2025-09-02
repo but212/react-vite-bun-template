@@ -1,11 +1,13 @@
-import { beforeEach, describe, expect, test } from 'vitest';
+import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { MemoryProfiler, memoryProfiler, profileMemory } from './memory-profiler';
+import { i18n } from '../i18n';
 
 describe('MemoryProfiler', () => {
   let profiler: MemoryProfiler;
 
   beforeEach(() => {
     profiler = new MemoryProfiler();
+    i18n.setLocale('ko');
   });
 
   describe('getCurrentMemorySnapshot', () => {

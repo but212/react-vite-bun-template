@@ -1,5 +1,5 @@
-import { describe, expect, test, vi } from 'vitest';
-import {
+import { describe, test, expect, beforeEach, vi } from 'vitest';
+import { 
   AdaptiveConcurrencyStrategy,
   DataStream,
   ExponentialBackoffRetryStrategy,
@@ -8,6 +8,7 @@ import {
   type ConcurrencyStrategy,
   type RetryStrategy,
 } from './data-stream';
+import { i18n } from '../i18n';
 
 // 유틸리티 함수: 실행 순서 배열이 병렬(인터리브)로 실행되었는지 확인합니다.
 // 예: [1, 2, -1, -2] -> 1번 시작, 2번 시작, 1번 종료, 2번 종료 (병렬)
@@ -35,6 +36,9 @@ function isInterleaved(arr: number[]): boolean {
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 describe('DataStream', () => {
+  beforeEach(() => {
+    i18n.setLocale('en');
+  });
   describe('기본 기능', () => {
     test('빈 배열 처리', async () => {
       const stream = new DataStream<number>();
