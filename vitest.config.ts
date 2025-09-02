@@ -26,7 +26,6 @@ export default mergeConfig(
           '**/*.test.tsx',
           '**/*.config.ts',
           '**/*.config.mjs',
-          'tests-e2e/**',
           '.eslintrc.mjs',
         ],
       },
