@@ -159,7 +159,7 @@ describe('BitUtils', () => {
       expect(() => {
         // @ts-expect-error: 읽기 전용 속성 할당 시도
         BitUtils.MASKS.BIT_0 = 999;
-      }).toThrow('Cannot assign to read only property');
+      }).toThrow('Attempted to assign to readonly property');
     });
   });
 
