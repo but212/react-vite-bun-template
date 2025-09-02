@@ -43,10 +43,7 @@ async function delayedLog() {
 ### 함수 시그니처 - debounce
 
 ```typescript
-export function debounce<T extends (...args: unknown[]) => void>(
-  fn: T, 
-  wait = 300
-): (...args: Parameters<T>) => void;
+export function debounce<T extends (...args: unknown[]) => void>(fn: T, wait = 300): (...args: Parameters<T>) => void;
 ```
 
 ### 파라미터 - debounce
@@ -78,10 +75,7 @@ const handleSearch = debounce((query) => {
 ### 함수 시그니처 - throttle
 
 ```typescript
-export function throttle<T extends (...args: unknown[]) => void>(
-  fn: T, 
-  wait = 300
-): (...args: Parameters<T>) => void;
+export function throttle<T extends (...args: unknown[]) => void>(fn: T, wait = 300): (...args: Parameters<T>) => void;
 ```
 
 ### 파라미터 - throttle
@@ -113,11 +107,7 @@ window.addEventListener('scroll', handleScroll);
 ### 함수 시그니처 - retry
 
 ```typescript
-export async function retry<T>(
-  fn: () => Promise<T>, 
-  times = 3, 
-  delay = 300
-): Promise<T>;
+export async function retry<T>(fn: () => Promise<T>, times = 3, delay = 300): Promise<T>;
 ```
 
 ### 파라미터 - retry

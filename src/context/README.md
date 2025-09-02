@@ -10,38 +10,34 @@
 
 1. **컨텍스트 생성**: `createContext` 함수에 컨텍스트의 타입과 이름을 전달하여 훅과 프로바이더를 생성합니다.
 
-    ```typescript
-    // src/context/theme-context.ts
-    import { createContext } from './create-context';
+   ```typescript
+   // src/context/theme-context.ts
+   import { createContext } from './create-context';
 
-    type Theme = 'light' | 'dark';
+   type Theme = 'light' | 'dark';
 
-    export const [useTheme, ThemeProvider] = createContext<Theme>('Theme');
-    ```
+   export const [useTheme, ThemeProvider] = createContext<Theme>('Theme');
+   ```
 
 2. **프로바이더로 감싸기**: 애플리케이션의 최상단이나 필요한 컴포넌트 트리 상단에서 생성된 `Provider`로 자식 컴포넌트를 감싸고 `value`를 전달합니다.
 
-    ```tsx
-    // src/App.tsx
-    import { ThemeProvider } from './context/theme-context';
+   ```tsx
+   // src/App.tsx
+   import { ThemeProvider } from './context/theme-context';
 
-    function App() {
-      return (
-        <ThemeProvider value="dark">
-          {/* ... other components */}
-        </ThemeProvider>
-      );
-    }
-    ```
+   function App() {
+     return <ThemeProvider value='dark'>{/* ... other components */}</ThemeProvider>;
+   }
+   ```
 
 3. **훅 사용하기**: 하위 컴포넌트에서 생성된 `useContext` 훅을 사용하여 컨텍스트 값을 가져옵니다.
 
-    ```tsx
-    // src/components/SomeComponent.tsx
-    import { useTheme } from '../context/theme-context';
+   ```tsx
+   // src/components/SomeComponent.tsx
+   import { useTheme } from '../context/theme-context';
 
-    function SomeComponent() {
-      const theme = useTheme(); // 'dark'
-      return <div className={theme}>...</div>;
-    }
-    ```
+   function SomeComponent() {
+     const theme = useTheme(); // 'dark'
+     return <div className={theme}>...</div>;
+   }
+   ```

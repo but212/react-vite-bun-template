@@ -58,27 +58,27 @@ export default RemoteComponentLoader;
 
 1. **리모트 애플리케이션 생성**: 별도의 Vite 애플리케이션을 만들고 `@originjs/vite-plugin-federation`을 이용해 리모트로 설정합니다.
 
-    ```typescript
-    // 리모트 앱 vite.config.ts
-    federation({
-      name: 'remote_app',
-      filename: 'remoteEntry.js',
-      exposes: {
-        './Button': './src/components/Button.tsx',
-      },
-      shared: ['react', 'react-dom'],
-    })
-    ```
+   ```typescript
+   // 리모트 앱 vite.config.ts
+   federation({
+     name: 'remote_app',
+     filename: 'remoteEntry.js',
+     exposes: {
+       './Button': './src/components/Button.tsx',
+     },
+     shared: ['react', 'react-dom'],
+   });
+   ```
 
 2. **리모트 앱 실행**: 리모트 애플리케이션을 실행합니다. (예: `http://localhost:5001`)
 
 3. **호스트 설정 업데이트**: 호스트의 `vite.config.ts`에서 `remotes` 객체를 수정합니다.
 
-    ```typescript
-    // host-app/vite.config.ts
-    remotes: {
-      'remote_app': 'http://localhost:5001/assets/remoteEntry.js',
-    },
-    ```
+   ```typescript
+   // host-app/vite.config.ts
+   remotes: {
+     'remote_app': 'http://localhost:5001/assets/remoteEntry.js',
+   },
+   ```
 
 4. **호스트 재시작**: 변경사항을 반영하려면 호스트 개발 서버를 재시작하세요. 이제 리모트 컴포넌트가 정상적으로 로드됩니다.

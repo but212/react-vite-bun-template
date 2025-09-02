@@ -29,10 +29,10 @@ interface AuthState {
   logout: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>(set => ({
   user: null,
   isAuthenticated: false,
-  login: (user) => set({ user, isAuthenticated: true }),
+  login: user => set({ user, isAuthenticated: true }),
   logout: () => set({ user: null, isAuthenticated: false }),
 }));
 ```
@@ -69,10 +69,10 @@ Zustand는 상태의 일부만 선택(select)하여 해당 상태가 변경될 �
 
 ```tsx
 // user 객체가 변경될 때만 리렌더링됩니다.
-const user = useAuthStore((state) => state.user);
+const user = useAuthStore(state => state.user);
 
 // isAuthenticated가 변경될 때만 리렌더링됩니다.
-const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+const isAuthenticated = useAuthStore(state => state.isAuthenticated);
 ```
 
 전체 스토어를 구독하면 스토어의 어떤 상태가 변경되어도 리렌더링이 발생하므로, 필요한 상태만 선택하여 사용하는 것이 성능에 유리합니다.

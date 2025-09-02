@@ -29,9 +29,9 @@ export const clamp = (v: number, min: number, max: number): number;
 ### 사용 예시 - clamp
 
 ```typescript
-clamp(10, 0, 5);   // 결과: 5
-clamp(-5, 0, 5);   // 결과: 0
-clamp(3, 0, 5);    // 결과: 3
+clamp(10, 0, 5); // 결과: 5
+clamp(-5, 0, 5); // 결과: 0
+clamp(3, 0, 5); // 결과: 3
 ```
 
 ---
@@ -43,10 +43,7 @@ clamp(3, 0, 5);    // 결과: 3
 ### 함수 시그니처 - pick
 
 ```typescript
-export function pick<T extends object, K extends keyof T>(
-  obj: T, 
-  keys: ReadonlyArray<K>
-): Pick<T, K>;
+export function pick<T extends object, K extends keyof T>(obj: T, keys: ReadonlyArray<K>): Pick<T, K>;
 ```
 
 ### 파라미터 - pick
@@ -76,10 +73,7 @@ const userInfo = pick(user, ['id', 'name']);
 ### 함수 시그니처 - omit
 
 ```typescript
-export function omit<T extends object, K extends keyof T>(
-  obj: T, 
-  keys: ReadonlyArray<K>
-): Omit<T, K>;
+export function omit<T extends object, K extends keyof T>(obj: T, keys: ReadonlyArray<K>): Omit<T, K>;
 ```
 
 ### 파라미터 - omit
