@@ -350,7 +350,8 @@ describe('cache-strategy utilities', () => {
     test('객체 키만 허용', () => {
       const cache = new WeakMapCache<string>();
       const objKey = {};
-      const funcKey = () => {};
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      const funcKey = function noop() {};
       const arrayKey: number[] = [];
 
       cache.set(objKey, 'object');
@@ -365,7 +366,6 @@ describe('cache-strategy utilities', () => {
     test('캐시 통계 수집', () => {
       const cache = new WeakMapCache<number>();
       const key1 = {};
-      const key2 = {};
 
       // 초기 상태
       let stats = cache.getStats();

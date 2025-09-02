@@ -1,4 +1,4 @@
-import { AdaptiveLRUCache, type CacheStats } from "./cache-strategy";
+import { AdaptiveLRUCache, type CacheStats } from './cache-strategy';
 
 /**
  * 0~31까지의 비트 위치를 나타내는 타입입니다.
@@ -7,21 +7,77 @@ import { AdaptiveLRUCache, type CacheStats } from "./cache-strategy";
  * 예시: 0(최하위 비트) ~ 31(최상위 비트)
  */
 export type BitPosition =
-  | 0  | 1  | 2  | 3  | 4  | 5  | 6  | 7
-  | 8  | 9  | 10 | 11 | 12 | 13 | 14 | 15
-  | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23
-  | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31;
+  | 0
+  | 1
+  | 2
+  | 3
+  | 4
+  | 5
+  | 6
+  | 7
+  | 8
+  | 9
+  | 10
+  | 11
+  | 12
+  | 13
+  | 14
+  | 15
+  | 16
+  | 17
+  | 18
+  | 19
+  | 20
+  | 21
+  | 22
+  | 23
+  | 24
+  | 25
+  | 26
+  | 27
+  | 28
+  | 29
+  | 30
+  | 31;
 
 /**
  * 1~32까지의 비트 길이를 나타내는 타입입니다.
  * @remarks
  * 비트 연산에서 사용되는 유효한 길이 값을 엄격하게 제한합니다.
  */
-export type BitLength = 
-  | 1  | 2  | 3  | 4  | 5  | 6  | 7  | 8
-  | 9  | 10 | 11 | 12 | 13 | 14 | 15 | 16
-  | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24
-  | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32;
+export type BitLength =
+  | 1
+  | 2
+  | 3
+  | 4
+  | 5
+  | 6
+  | 7
+  | 8
+  | 9
+  | 10
+  | 11
+  | 12
+  | 13
+  | 14
+  | 15
+  | 16
+  | 17
+  | 18
+  | 19
+  | 20
+  | 21
+  | 22
+  | 23
+  | 24
+  | 25
+  | 26
+  | 27
+  | 28
+  | 29
+  | 30
+  | 31
+  | 32;
 
 /**
  * 0~32까지의 비트 길이를 나타내는 브랜드 타입입니다.
@@ -474,7 +530,7 @@ class BitUtils {
    */
   static extractBits(x: number, start: BitPosition, length: BitLengthWithZero): number {
     x = this.validate32Bit(x, 'extractBits');
-    
+
     // 음수 검증
     if (start < 0) {
       throw new RangeError('extractBits: start must be non-negative');
@@ -482,12 +538,12 @@ class BitUtils {
     if (length < 0) {
       throw new RangeError('extractBits: length must be non-negative');
     }
-    
+
     // 0 길이인 경우 0 반환
     if (length === 0) {
       return 0;
     }
-    
+
     if (start + length > 32) {
       throw new RangeError('extractBits: start + length must not exceed 32');
     }
@@ -497,7 +553,6 @@ class BitUtils {
       return (x >>> start) >>> 0;
     }
 
-    const mask = ((1 << length) - 1) << start;
     const maskedBits = (x >>> start) & ((1 << length) - 1);
     return maskedBits >>> 0;
   }
@@ -524,7 +579,7 @@ class BitUtils {
    * BitUtils.insertBits(0, 0b1111, 4, 4);     // 240 (0b11110000)
    * BitUtils.insertBits(0b11110000, 0b101, 1, 3); // 234 (0b11101010)
    * BitUtils.insertBits(0xff00ff00, 0b1010, 4, 4); // 0xff00ffa0
-   * 
+   *
    * // 타입 안전한 길이 사용
    * const safeLength = createBitLength(4);
    * BitUtils.insertBits(0, 0b1111, 4, safeLength); // 컴파일 타임 안전
@@ -543,7 +598,7 @@ class BitUtils {
     if (!isValidBitLength(length)) {
       throw new RangeError(`insertBits: Invalid length ${length}. Use createBitLength() for type-safe values.`);
     }
-    
+
     if (start + length > 32) {
       throw new RangeError('insertBits: start + length must not exceed 32');
     }
@@ -677,17 +732,15 @@ class BitUtils {
   } {
     const powerStats = this.powerOfTwoCache.getStats();
     const popStats = this.popCountCache.getStats();
-    
+
     const totalHits = powerStats.hits + popStats.hits;
     const totalMisses = powerStats.misses + popStats.misses;
-    const combinedHitRate = totalHits + totalMisses > 0 
-      ? totalHits / (totalHits + totalMisses) 
-      : 0;
+    const combinedHitRate = totalHits + totalMisses > 0 ? totalHits / (totalHits + totalMisses) : 0;
 
     return {
       powerOfTwoCache: powerStats,
       popCountCache: popStats,
-      combinedHitRate
+      combinedHitRate,
     };
   }
 
