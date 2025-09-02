@@ -30,6 +30,7 @@
     "rollup-plugin-visualizer": "^6.0.3",
     "tailwindcss": "^4.1.12",
     "vite": "^7.1.4",
+    "vite-plugin-pwa": "^1.0.3",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^2.1.9"
   },
@@ -49,6 +50,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:analyze": "bun run build",
     "preview": "vite preview",
     "prepare": "husky",
     "typecheck": "tsc --noEmit",
