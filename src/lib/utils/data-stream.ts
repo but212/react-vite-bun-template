@@ -6,6 +6,8 @@
  * @module DataStream
  */
 
+import { createErrorMessage } from '../i18n';
+
 /**
  * 처리 진행률 콜백 함수의 타입 정의입니다.
  *
@@ -410,7 +412,7 @@ export class DataStream<T> {
 
   constructor(options: DataStreamOptions = {}) {
     if (options.chunkSize !== undefined && options.chunkSize <= 0) {
-      throw new Error('chunkSize must be greater than 0');
+      throw new Error(createErrorMessage('dataStream', 'invalidChunkSize'));
     }
     this.chunkSize = options.chunkSize ?? 1024;
     this.onProgress = options.onProgress;
@@ -445,7 +447,7 @@ export class DataStream<T> {
   public async process<R>(data: readonly T[], processor: ChunkProcessor<T, R>): Promise<ProcessResult<R>> {
     this.signal?.throwIfAborted();
 
-    if (!Array.isArray(data)) throw new TypeError('Data must be an array');
+    if (!Array.isArray(data)) throw new TypeError(createErrorMessage('dataStream', 'notArray'));
 
     const startTime = performance.now();
     let maxMemoryUsage = 0;
@@ -586,10 +588,10 @@ export class DataStream<T> {
     // 외부 AbortSignal에 의해 중단된 경우, 표준 AbortError를 던짐.
     if (this.signal?.aborted) {
       if (typeof DOMException !== 'undefined') {
-        throw new DOMException('This operation was aborted', 'AbortError');
+        throw new DOMException(createErrorMessage('dataStream', 'operationAborted'), 'AbortError');
       } else {
         // Node.js 환경이나 DOMException이 없는 환경에서의 폴백
-        const error = new Error('This operation was aborted');
+        const error = new Error(createErrorMessage('dataStream', 'operationAborted'));
         error.name = 'AbortError';
         throw error;
       }
