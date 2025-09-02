@@ -12,6 +12,7 @@ docs/         # 프로젝트 문서
 licenses/     # 서드파티 라이선스 정보
 public/       # 정적 에셋 (이미지, 파비콘 등)
 src/          # 애플리케이션 소스 코드
+tests-e2e/    # Playwright E2E 테스트
 ```
 
 ## `src` 디렉터리 상세 구조
