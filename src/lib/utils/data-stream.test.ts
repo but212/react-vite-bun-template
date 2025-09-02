@@ -421,7 +421,7 @@ describe('DataStream', () => {
       // setImmediate 모킹
       const setImmediateSpy = vi.spyOn(global, 'setImmediate').mockImplementation(fn => {
         setTimeout(fn, 0);
-        return {} as NodeJS.Immediate;
+        return {} as ReturnType<typeof setImmediate>;
       });
 
       await stream.process(data, processor);
@@ -622,8 +622,8 @@ describe('DataStream', () => {
           concurrencyStrategy: new TestConcurrencyStrategy(),
         });
 
-        let smallDataWorkers = 0;
-        let largeDataWorkers = 0;
+        const _smallDataWorkers = 0;
+        const _largeDataWorkers = 0;
 
         const processor = vi.fn().mockImplementation(async () => {
           await delay(10);
@@ -644,7 +644,7 @@ describe('DataStream', () => {
         const data = Array.from({ length: 10 }, (_, i) => i);
 
         let pauseCount = 0;
-        const backpressureCallback: BackpressureCallback = async (memoryUsage, activeWorkers) => {
+        const backpressureCallback: BackpressureCallback = async (_memoryUsage, _activeWorkers) => {
           pauseCount++;
           // 첫 번째 호출에서는 일시정지, 두 번째부터는 계속 진행
           return pauseCount > 1;
@@ -852,7 +852,7 @@ describe('DataStream', () => {
         expect(result!.metrics.averageChunkTime).toBeGreaterThan(0);
         expect(typeof result!.metrics.totalTime).toBe('number');
         expect(result!.metrics.totalTime).toBeGreaterThan(0);
-        
+
         // 새로운 메트릭 필드들 검증
         expect(typeof result!.metrics.concurrencyUsed).toBe('number');
         expect(result!.metrics.concurrencyUsed).toBeGreaterThan(0);
@@ -873,7 +873,7 @@ describe('DataStream', () => {
         const stream = new DataStream<number>({ chunkSize: 1 });
 
         // 랜덤 지연으로 청크 완료 순서를 섞음
-        const processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
+        const _processor = vi.fn().mockImplementation(async (chunk: ChunkView<number>) => {
           const delay = Math.random() * 20;
           await new Promise(resolve => setTimeout(resolve, delay));
           return chunk.slice();
@@ -888,9 +888,9 @@ describe('DataStream', () => {
       test('AbortSignal 즉시 중단', async () => {
         const data = Array.from({ length: 100 }, (_, i) => i);
         const controller = new AbortController();
-        const stream = new DataStream<number>({ 
+        const stream = new DataStream<number>({
           chunkSize: 1,
-          signal: controller.signal 
+          signal: controller.signal,
         });
 
         let callCount = 0;
@@ -904,21 +904,21 @@ describe('DataStream', () => {
         });
 
         await expect(stream.process(data, processor)).rejects.toThrow(/operation was aborted/);
-        
+
         // 중단 후 추가 호출이 최소화되어야 함
         expect(callCount).toBeLessThan(10);
       });
 
       test('FailFast + Retry 상호작용', async () => {
-        const data = [1, 2, 3];
+        const _data = [1, 2, 3];
         const retryStrategy = new ExponentialBackoffRetryStrategy(2, 10);
-        
+
         // retryInFailFast가 true인 경우
-        const stream1 = new DataStream<number>({ 
+        const stream1 = new DataStream<number>({
           failFast: true,
           retryInFailFast: true,
           retryStrategy,
-          chunkSize: 1
+          chunkSize: 1,
         });
 
         let attempt1 = 0;
@@ -933,10 +933,10 @@ describe('DataStream', () => {
         expect(attempt1).toBe(3); // 첫 시도 + 2번 재시도
 
         // retryInFailFast가 false인 경우 (기본값)
-        const stream2 = new DataStream<number>({ 
+        const stream2 = new DataStream<number>({
           failFast: true,
           retryStrategy,
-          chunkSize: 1
+          chunkSize: 1,
         });
 
         let attempt2 = 0;
@@ -991,7 +991,7 @@ describe('DataStream', () => {
           .filter(x => x < 50); // 50 미만만
 
         const result = await chain.collect();
-        
+
         // 예상 결과: 0,2,4,6,8,10,12,14,16,18,20,22,24 -> 0,4,8,12,16,20,24,28,32,36,40,44,48
         const expected = [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48];
         expect(result).toEqual(expected);
@@ -1000,10 +1000,10 @@ describe('DataStream', () => {
       test('재시도 횟수 메트릭 추적', async () => {
         const data = [1, 2, 3];
         const retryStrategy = new ExponentialBackoffRetryStrategy(2, 1);
-        const stream = new DataStream<number>({ 
+        const stream = new DataStream<number>({
           failFast: false,
           retryStrategy,
-          chunkSize: 1
+          chunkSize: 1,
         });
 
         let callCount = 0;
@@ -1014,9 +1014,9 @@ describe('DataStream', () => {
         });
 
         const result = await stream.process(data, processor);
-        
+
         // 첫 번째 청크: 3번 시도 (1 + 2 재시도) 후 성공 - callCount 1,2,3
-        // 두 번째 청크: 2번 시도 (1 + 1 재시도) 후 성공 - callCount 4,5  
+        // 두 번째 청크: 2번 시도 (1 + 1 재시도) 후 성공 - callCount 4,5
         // 세 번째 청크: 1번 시도로 성공 - callCount 6
         // 총 재시도: 2 + 1 = 3번, 하지만 실제로는 각 청크가 독립적으로 처리되므로 4번
         expect(result.metrics.totalRetries).toBe(4); // 실제 재시도 횟수

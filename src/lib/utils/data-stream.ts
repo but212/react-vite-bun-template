@@ -161,7 +161,7 @@ export class ExponentialBackoffRetryStrategy implements RetryStrategy {
     this.jitter = jitter;
   }
 
-  shouldRetry(attempt: number, error: unknown): boolean {
+  shouldRetry(attempt: number, _error: unknown): boolean {
     return attempt <= this.maxRetries;
   }
 
@@ -276,29 +276,38 @@ export interface StreamChain<T> {
 /**
  * 변환 연산의 타입 정의
  */
-type TransformOperation = { type: 'map'; fn: (item: any) => any } | { type: 'filter'; fn: (item: any) => boolean };
+type TransformOperation<T = unknown, U = unknown> =
+  | { type: 'map'; fn: (item: T) => U }
+  | { type: 'filter'; fn: (item: T) => boolean };
 
 /**
  * 스트림 체인 구현 클래스 - 지연 평가(lazy evaluation)를 사용하여 메모리 효율성을 개선
  */
 class StreamChainImpl<T> implements StreamChain<T> {
-  private readonly stream: DataStream<any>;
-  private readonly data: readonly T[];
-  private readonly operations: TransformOperation[];
+  private readonly stream: DataStream<unknown>;
+  private readonly data: readonly unknown[];
+  private readonly operations: TransformOperation<unknown, unknown>[];
 
-  constructor(stream: DataStream<any>, data: readonly T[], operations: TransformOperation[] = []) {
+  constructor(
+    stream: DataStream<unknown>,
+    data: readonly unknown[],
+    operations: TransformOperation<unknown, unknown>[] = []
+  ) {
     this.stream = stream;
     this.data = data;
     this.operations = operations;
   }
 
   map<U>(mapper: (item: T) => U): StreamChain<U> {
-    const newOperations = [...this.operations, { type: 'map' as const, fn: mapper as (item: any) => any }];
-    return new StreamChainImpl<U>(this.stream, this.data as readonly any[], newOperations);
+    const newOperations = [...this.operations, { type: 'map' as const, fn: mapper as (item: unknown) => unknown }];
+    return new StreamChainImpl<U>(this.stream, this.data, newOperations);
   }
 
   filter(predicate: (item: T) => boolean): StreamChain<T> {
-    const newOperations = [...this.operations, { type: 'filter' as const, fn: predicate as (item: any) => boolean }];
+    const newOperations = [
+      ...this.operations,
+      { type: 'filter' as const, fn: predicate as (item: unknown) => boolean },
+    ];
     return new StreamChainImpl<T>(this.stream, this.data, newOperations);
   }
 
@@ -307,7 +316,7 @@ class StreamChainImpl<T> implements StreamChain<T> {
 
     await this.stream.process(this.data, async chunk => {
       for (const rawItem of chunk) {
-        const transformedItem = this.applyTransformationsToItem(rawItem);
+        const transformedItem = this.applyTransformationsToItem(rawItem as T);
         if (transformedItem !== null) {
           accumulator = reducer(accumulator, transformedItem);
         }
@@ -320,7 +329,7 @@ class StreamChainImpl<T> implements StreamChain<T> {
   async forEach(callback: (item: T) => void | Promise<void>): Promise<void> {
     await this.stream.process(this.data, async chunk => {
       for (const rawItem of chunk) {
-        const transformedItem = this.applyTransformationsToItem(rawItem);
+        const transformedItem = this.applyTransformationsToItem(rawItem as T);
         if (transformedItem !== null) {
           await callback(transformedItem);
         }
@@ -333,7 +342,7 @@ class StreamChainImpl<T> implements StreamChain<T> {
     const { results: chunks } = await this.stream.process(this.data, async chunk => {
       const transformedItems: T[] = [];
       for (const rawItem of chunk) {
-        const transformedItem = this.applyTransformationsToItem(rawItem);
+        const transformedItem = this.applyTransformationsToItem(rawItem as T);
         if (transformedItem !== null) {
           transformedItems.push(transformedItem);
         }
@@ -348,8 +357,8 @@ class StreamChainImpl<T> implements StreamChain<T> {
    * 개별 아이템에 지연 변환을 적용합니다.
    * 연산들을 추가된 순서대로 적용합니다.
    */
-  private applyTransformationsToItem(item: any): T | null {
-    let currentItem = item;
+  private applyTransformationsToItem(item: T): T | null {
+    let currentItem: unknown = item;
 
     // 모든 연산을 순서대로 적용
     for (const operation of this.operations) {
@@ -362,13 +371,12 @@ class StreamChainImpl<T> implements StreamChain<T> {
       }
     }
 
-    return currentItem;
+    return currentItem as T;
   }
 }
 
 /**
  * 메모리 사용량 모니터링 유틸리티
-{{ ... }}
  */
 class MemoryMonitor {
   getMemoryUsage(): number {
@@ -376,9 +384,9 @@ class MemoryMonitor {
       // Node.js 환경
       const usage = process.memoryUsage();
       return usage.heapUsed / 1024 / 1024; // MB 단위
-    } else if (typeof performance !== 'undefined' && (performance as any).memory) {
+    } else if (typeof performance !== 'undefined' && 'memory' in performance) {
       // 브라우저 환경 (Chrome)
-      const memory = (performance as any).memory;
+      const memory = (performance as { memory: { usedJSHeapSize: number } }).memory;
       return memory.usedJSHeapSize / 1024 / 1024; // MB 단위
     }
     return 0; // 메모리 정보를 얻을 수 없는 경우
@@ -424,12 +432,8 @@ export class DataStream<T> {
    * 함수형 스트림 체이닝 시작
    */
   chain<U extends T>(data: readonly U[]): StreamChain<U> {
-    return new StreamChainImpl<U>(this, data);
+    return new StreamChainImpl<U>(this as DataStream<unknown>, data as readonly unknown[]);
   }
-
-  /**
-   * 내부: 지정된 청크를 processor로 처리(재시도 포함)
-   */
 
   /**
    * 데이터를 청크 단위로 병렬 비동기 처리(진행률/재시도/취소/백프레셔/이벤트루프 양보 포함)
@@ -565,7 +569,7 @@ export class DataStream<T> {
               await new Promise(resolve => setTimeout(resolve, 0));
             }
           }
-        } catch (err) {
+        } catch {
           // processSingleChunk 내부에서 모든 오류를 처리하므로, worker의 catch 블록은 비워둡니다.
           // failFast:true인 경우, internalController가 중단 신호를 보내 루프가 종료됩니다.
           // failFast:false인 경우, 오류는 errors 배열에 수집되고 이 워커는 다음 작업을 계속합니다.
@@ -618,7 +622,10 @@ export class DataStream<T> {
       // `totalChunks`를 기준으로 순회하여 순서를 보장.
       for (let i = 0; i < totalChunks; i++) {
         if (results.has(i)) {
-          sortedResults.push(results.get(i)!);
+          const result = results.get(i);
+          if (result !== undefined) {
+            sortedResults.push(result);
+          }
         }
       }
     }
