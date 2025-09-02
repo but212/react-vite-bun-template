@@ -1,5 +1,13 @@
 import { gql, useQuery } from '@apollo/client';
 
+interface Launch {
+  mission_name: string;
+  launch_date_local: string;
+  launch_site: {
+    site_name_long: string;
+  };
+}
+
 const GET_LAUNCHES = gql`
   query GetLaunches {
     launches(limit: 5) {
@@ -22,7 +30,7 @@ const Launches = () => {
     <div>
       <h2 className='text-2xl font-bold mb-4'>SpaceX Launches</h2>
       <ul>
-        {data.launches.map((launch: any) => (
+        {data.launches.map((launch: Launch) => (
           <li key={launch.mission_name} className='mb-2 p-2 border rounded'>
             <h3 className='font-bold'>{launch.mission_name}</h3>
             <p>Date: {new Date(launch.launch_date_local).toLocaleDateString()}</p>
