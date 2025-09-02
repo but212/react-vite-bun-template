@@ -5,6 +5,8 @@
 
 export type Locale = 'ko' | 'en';
 
+export type ErrorCategory = 'env' | 'bitUtils' | 'dataStream' | 'cache' | 'memoryProfiler';
+
 export interface I18nMessages {
   errors: {
     env: {
@@ -27,6 +29,12 @@ export interface I18nMessages {
     };
     cache: {
       invalidSize: string;
+    };
+    memoryProfiler: {
+      alreadyRunning: string;
+      notRunning: string;
+      stillRunning: string;
+      noData: string;
     };
   };
   validation: {
@@ -55,9 +63,15 @@ const messages: Record<Locale, I18nMessages> = {
         insertBitsRange: '{method}: start + length는 32를 초과할 수 없습니다',
       },
       dataStream: {
-        invalidChunkSize: 'chunkSize는 0보다 커야 합니다',
-        notArray: '데이터는 배열이어야 합니다',
-        operationAborted: '이 작업이 중단되었습니다',
+        invalidChunkSize: '청크 크기는 0보다 커야 합니다.',
+        notArray: '데이터는 배열이어야 합니다.',
+        operationAborted: '작업이 중단되었습니다.',
+      },
+      memoryProfiler: {
+        alreadyRunning: '메모리 프로파일링이 이미 실행 중입니다.',
+        notRunning: '메모리 프로파일링이 실행되고 있지 않습니다.',
+        stillRunning: '프로파일링이 아직 실행 중입니다. 먼저 중지해주세요.',
+        noData: '프로파일링 데이터가 없습니다.',
       },
       cache: {
         invalidSize: '캐시 크기는 양수여야 합니다',
@@ -93,6 +107,12 @@ const messages: Record<Locale, I18nMessages> = {
       cache: {
         invalidSize: 'Cache size must be positive',
       },
+      memoryProfiler: {
+        alreadyRunning: 'Memory profiling is already running.',
+        notRunning: 'Memory profiling is not running.',
+        stillRunning: 'Profiling is still running. Please stop it first.',
+        noData: 'No profiling data available.',
+      },
     },
     validation: {
       required: 'Required field',
@@ -126,17 +146,20 @@ class I18n {
    */
   t(key: string, params?: Record<string, string | number>): string {
     const keys = key.split('.');
-    let message: any = messages[this.currentLocale];
+    let message: unknown = messages[this.currentLocale];
 
     for (const k of keys) {
-      message = message?.[k];
-      if (message === undefined) {
+      if (typeof message === 'object' && message !== null && k in message) {
+        message = (message as Record<string, unknown>)[k];
+      } else {
+        // eslint-disable-next-line no-console
         console.warn(`Missing translation for key: ${key} (locale: ${this.currentLocale})`);
         return key; // 번역이 없으면 키를 그대로 반환
       }
     }
 
     if (typeof message !== 'string') {
+      // eslint-disable-next-line no-console
       console.warn(`Translation for key ${key} is not a string`);
       return key;
     }
