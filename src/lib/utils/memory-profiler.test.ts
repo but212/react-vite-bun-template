@@ -1,6 +1,6 @@
-import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { MemoryProfiler, memoryProfiler, profileMemory } from './memory-profiler';
+import { beforeEach, describe, expect, test } from 'vitest';
 import { i18n } from '../i18n';
+import { MemoryProfiler, memoryProfiler, profileMemory } from './memory-profiler';
 
 describe('MemoryProfiler', () => {
   let profiler: MemoryProfiler;
