@@ -145,11 +145,17 @@ export class VectorEngine {
   }
 
   /**
-   * 대용량 벡터 덧셈
+   * 벡터 덧셈
    */
   async addVectors(a: Vector, b: Vector): Promise<Vector> {
+    if (!a || !b) {
+      throw new Error('벡터가 null 또는 undefined입니다');
+    }
     if (a.length !== b.length) {
-      throw new Error('벡터 차원이 일치해야 합니다');
+      throw new Error(`벡터 차원이 일치하지 않습니다: ${a.length} vs ${b.length}`);
+    }
+    if (a.length === 0) {
+      throw new Error('빈 벡터는 연산할 수 없습니다');
     }
 
     const result = this.createVector(a.length);
@@ -228,8 +234,14 @@ export class VectorEngine {
    * 벡터 내적
    */
   async dotProduct(a: Vector, b: Vector): Promise<number> {
+    if (!a || !b) {
+      throw new Error('벡터가 null 또는 undefined입니다');
+    }
     if (a.length !== b.length) {
-      throw new Error('벡터 차원이 일치해야 합니다');
+      throw new Error(`벡터 차원이 일치하지 않습니다: ${a.length} vs ${b.length}`);
+    }
+    if (a.length === 0) {
+      throw new Error('빈 벡터는 연산할 수 없습니다');
     }
 
     let result = 0;
@@ -248,11 +260,18 @@ export class VectorEngine {
    * 벡터 크기 (노름)
    */
   magnitude(vector: Vector): number {
+    if (!vector) {
+      throw new Error('벡터가 null 또는 undefined입니다');
+    }
+    if (vector.length === 0) {
+      return 0;
+    }
+    
     let sum = 0;
     for (let i = 0; i < vector.length; i++) {
-      const val = vector.data[i];
-      if (val !== undefined) {
-        sum += val * val;
+      const value = vector.data[i];
+      if (value !== undefined) {
+        sum += value * value;
       }
     }
     return Math.sqrt(sum);
@@ -262,19 +281,28 @@ export class VectorEngine {
    * 벡터 정규화
    */
   normalize(vector: Vector): Vector {
+    if (!vector) {
+      throw new Error('벡터가 null 또는 undefined입니다');
+    }
+    if (vector.length === 0) {
+      throw new Error('빈 벡터는 정규화할 수 없습니다');
+    }
+    
     const mag = this.magnitude(vector);
     if (mag === 0) {
       throw new Error('영벡터는 정규화할 수 없습니다');
     }
+    if (!Number.isFinite(mag)) {
+      throw new Error('벡터 크기가 유한하지 않습니다');
+    }
 
     const result = this.createVector(vector.length);
     for (let i = 0; i < vector.length; i++) {
-      const val = vector.data[i];
-      if (val !== undefined) {
-        result.data[i] = val / mag;
+      const value = vector.data[i];
+      if (value !== undefined) {
+        result.data[i] = value / mag;
       }
     }
-
     return result;
   }
 
