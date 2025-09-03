@@ -92,7 +92,8 @@
     "postinstall": [
       "bunx rimraf -rf .git",
       "bunx rimraf -rf dist",
-      "bunx rimraf -rf LICENSE"
+      "bunx rimraf -rf LICENSE",
+      "echo '경고: LICENSE 파일이 제거되었습니다. 새 프로젝트에 맞는 라이선스를 추가하세요.'"
     ],
     "start": "bun run dev"
   }
