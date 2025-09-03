@@ -493,11 +493,11 @@ class BitUtils {
 
   /**
    * 32비트 정수를 오른쪽으로 지정된 비트 수만큼 시프트합니다.
-   * 
+   *
    * @param x 시프트할 32비트 정수
    * @param positions 시프트할 비트 수 (0-31)
    * @returns 오른쪽으로 시프트된 결과
-   * 
+   *
    * @example
    * ```typescript
    * BitUtils.rightShift(8, 1);  // 4 (0b1000 → 0b0100)
@@ -507,16 +507,16 @@ class BitUtils {
   static rightShift(x: number, positions: number): number {
     x = this.validate32Bit(x, 'rightShift');
     positions = Math.max(0, Math.min(31, Math.floor(positions)));
-    return (x >>> positions);
+    return x >>> positions;
   }
 
   /**
    * 32비트 정수를 왼쪽으로 지정된 비트 수만큼 시프트합니다.
-   * 
+   *
    * @param x 시프트할 32비트 정수
    * @param positions 시프트할 비트 수 (0-31)
    * @returns 왼쪽으로 시프트된 결과
-   * 
+   *
    * @example
    * ```typescript
    * BitUtils.leftShift(1, 3);   // 8 (0b0001 → 0b1000)
@@ -526,7 +526,7 @@ class BitUtils {
   static leftShift(x: number, positions: number): number {
     x = this.validate32Bit(x, 'leftShift');
     positions = Math.max(0, Math.min(31, Math.floor(positions)));
-    return ((x << positions) >>> 0);
+    return (x << positions) >>> 0;
   }
 
   // ===== 새로운 비트 조작 메서드 =====

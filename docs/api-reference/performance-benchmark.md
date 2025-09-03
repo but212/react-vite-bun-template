@@ -72,11 +72,7 @@ interface BenchmarkResult {
 
 ```typescript
 // 동기 함수 측정
-const syncResult = await benchmark.measureFunction(
-  'fibonacci',
-  () => fibonacci(30),
-  5
-);
+const syncResult = await benchmark.measureFunction('fibonacci', () => fibonacci(30), 5);
 
 // 비동기 함수 측정
 const asyncResult = await benchmark.measureFunction(
@@ -97,10 +93,10 @@ const asyncResult = await benchmark.measureFunction(
 
 ```typescript
 interface DataProcessingBenchmarkOptions {
-  dataSizes: number[];          // 테스트할 데이터 크기들
-  chunkSizes: number[];         // 테스트할 청크 크기들
-  concurrencyLevels: number[];  // 테스트할 동시성 수준들
-  iterations: number;           // 각 조합당 반복 횟수
+  dataSizes: number[]; // 테스트할 데이터 크기들
+  chunkSizes: number[]; // 테스트할 청크 크기들
+  concurrencyLevels: number[]; // 테스트할 동시성 수준들
+  iterations: number; // 각 조합당 반복 횟수
   processor?: (chunk: any[]) => Promise<any[]>; // 커스텀 프로세서
 }
 ```
@@ -113,15 +109,13 @@ const dataResults = await benchmark.benchmarkDataProcessing({
   chunkSizes: [100, 500, 1000],
   concurrencyLevels: [1, 2, 4, 8],
   iterations: 3,
-  processor: async (chunk) => {
+  processor: async chunk => {
     return chunk.map(item => item * 2);
-  }
+  },
 });
 
 // 최적 설정 찾기
-const optimal = dataResults.results.reduce((best, current) => 
-  current.throughput > best.throughput ? current : best
-);
+const optimal = dataResults.results.reduce((best, current) => (current.throughput > best.throughput ? current : best));
 ```
 
 #### `compareImplementations<T>(implementations: Implementation<T>[], testData: any, iterations: number): Promise<ComparisonResult<T>>`
@@ -134,24 +128,20 @@ const optimal = dataResults.results.reduce((best, current) =>
 const implementations = [
   {
     name: 'native-sort',
-    fn: (arr: number[]) => [...arr].sort((a, b) => a - b)
+    fn: (arr: number[]) => [...arr].sort((a, b) => a - b),
   },
   {
     name: 'quick-sort',
-    fn: (arr: number[]) => quickSort([...arr])
+    fn: (arr: number[]) => quickSort([...arr]),
   },
   {
     name: 'merge-sort',
-    fn: (arr: number[]) => mergeSort([...arr])
-  }
+    fn: (arr: number[]) => mergeSort([...arr]),
+  },
 ];
 
 const testArray = Array.from({ length: 10000 }, () => Math.random());
-const comparison = await benchmark.compareImplementations(
-  implementations,
-  testArray,
-  5
-);
+const comparison = await benchmark.compareImplementations(implementations, testArray, 5);
 
 // 결과 분석
 comparison.results.forEach(result => {
@@ -171,9 +161,9 @@ const memoryBenchmark = await benchmark.measureFunction(
     const largeArray = new Array(1000000).fill(0).map((_, i) => ({
       id: i,
       value: Math.random(),
-      processed: false
+      processed: false,
     }));
-    
+
     return largeArray
       .filter(item => item.value > 0.5)
       .map(item => ({ ...item, processed: true }))
@@ -196,17 +186,21 @@ async function benchmarkSortingAlgorithms() {
 
   for (const size of sizes) {
     const testData = Array.from({ length: size }, () => Math.random());
-    
-    const comparison = await benchmark.compareImplementations([
-      { name: 'Array.sort', fn: (arr) => [...arr].sort((a, b) => a - b) },
-      { name: 'QuickSort', fn: (arr) => quickSort([...arr]) },
-      { name: 'MergeSort', fn: (arr) => mergeSort([...arr]) },
-      { name: 'HeapSort', fn: (arr) => heapSort([...arr]) }
-    ], testData, 5);
-    
+
+    const comparison = await benchmark.compareImplementations(
+      [
+        { name: 'Array.sort', fn: arr => [...arr].sort((a, b) => a - b) },
+        { name: 'QuickSort', fn: arr => quickSort([...arr]) },
+        { name: 'MergeSort', fn: arr => mergeSort([...arr]) },
+        { name: 'HeapSort', fn: arr => heapSort([...arr]) },
+      ],
+      testData,
+      5
+    );
+
     results.push({ size, comparison });
   }
-  
+
   return results;
 }
 ```
@@ -223,21 +217,19 @@ async function benchmarkApiCalls() {
     const result = await benchmark.measureFunction(
       `api-calls-concurrency-${concurrency}`,
       async () => {
-        const promises = Array.from({ length: concurrency }, () =>
-          fetch('/api/test').then(r => r.json())
-        );
+        const promises = Array.from({ length: concurrency }, () => fetch('/api/test').then(r => r.json()));
         return Promise.all(promises);
       },
       10
     );
-    
+
     results.push({
       concurrency,
       averageTime: result.averageTime,
-      throughput: result.throughput
+      throughput: result.throughput,
     });
   }
-  
+
   return results;
 }
 ```
@@ -251,32 +243,32 @@ class PerformanceMonitor {
 
   async trackOperation<T>(name: string, operation: () => Promise<T>): Promise<T> {
     const result = await this.benchmark.measureFunction(name, operation, 1);
-    
+
     if (!this.metrics.has(name)) {
       this.metrics.set(name, []);
     }
-    
+
     const history = this.metrics.get(name)!;
     history.push(result);
-    
+
     // 최근 100개 결과만 유지
     if (history.length > 100) {
       history.shift();
     }
-    
+
     // 성능 저하 감지
     if (history.length >= 10) {
       const recent = history.slice(-10);
       const older = history.slice(-20, -10);
-      
+
       const recentAvg = recent.reduce((sum, r) => sum + r.averageTime, 0) / recent.length;
       const olderAvg = older.reduce((sum, r) => sum + r.averageTime, 0) / older.length;
-      
+
       if (recentAvg > olderAvg * 1.5) {
         console.warn(`Performance degradation detected for ${name}: ${recentAvg}ms vs ${olderAvg}ms`);
       }
     }
-    
+
     return await operation();
   }
 
@@ -292,7 +284,7 @@ class PerformanceMonitor {
 class BenchmarkReporter {
   static generateReport(results: BenchmarkResult[]): string {
     let report = '# Performance Benchmark Report\n\n';
-    
+
     results.forEach(result => {
       report += `## ${result.name}\n`;
       report += `- **Iterations**: ${result.iterations}\n`;
@@ -302,21 +294,14 @@ class BenchmarkReporter {
       report += `- **Throughput**: ${result.throughput.toFixed(0)} ops/sec\n`;
       report += `- **Memory Peak**: ${result.memory.peak.toFixed(1)}MB\n\n`;
     });
-    
+
     return report;
   }
-  
+
   static generateCSV(results: BenchmarkResult[]): string {
     const headers = ['name', 'averageTime', 'minTime', 'maxTime', 'throughput', 'memoryPeak'];
-    const rows = results.map(r => [
-      r.name,
-      r.averageTime,
-      r.minTime,
-      r.maxTime,
-      r.throughput,
-      r.memory.peak
-    ]);
-    
+    const rows = results.map(r => [r.name, r.averageTime, r.minTime, r.maxTime, r.throughput, r.memory.peak]);
+
     return [headers, ...rows].map(row => row.join(',')).join('\n');
   }
 }
@@ -330,9 +315,12 @@ class BenchmarkReporter {
 // 최적화 전후 비교
 async function optimizeFunction() {
   const original = (data: number[]) => {
-    return data.filter(x => x > 0).map(x => x * 2).sort((a, b) => a - b);
+    return data
+      .filter(x => x > 0)
+      .map(x => x * 2)
+      .sort((a, b) => a - b);
   };
-  
+
   const optimized = (data: number[]) => {
     const result = [];
     for (const x of data) {
@@ -340,14 +328,18 @@ async function optimizeFunction() {
     }
     return result.sort((a, b) => a - b);
   };
-  
+
   const testData = Array.from({ length: 100000 }, () => Math.random() - 0.5);
-  
-  const comparison = await benchmark.compareImplementations([
-    { name: 'original', fn: original },
-    { name: 'optimized', fn: optimized }
-  ], testData, 10);
-  
+
+  const comparison = await benchmark.compareImplementations(
+    [
+      { name: 'original', fn: original },
+      { name: 'optimized', fn: optimized },
+    ],
+    testData,
+    10
+  );
+
   return comparison;
 }
 ```
@@ -357,21 +349,29 @@ async function optimizeFunction() {
 ```typescript
 // 메모리 효율적인 구현 찾기
 const memoryTests = await Promise.all([
-  benchmark.measureFunction('array-concat', () => {
-    let result = [];
-    for (let i = 0; i < 10000; i++) {
-      result = result.concat([i]);
-    }
-    return result;
-  }, 3),
-  
-  benchmark.measureFunction('array-push', () => {
-    const result = [];
-    for (let i = 0; i < 10000; i++) {
-      result.push(i);
-    }
-    return result;
-  }, 3)
+  benchmark.measureFunction(
+    'array-concat',
+    () => {
+      let result = [];
+      for (let i = 0; i < 10000; i++) {
+        result = result.concat([i]);
+      }
+      return result;
+    },
+    3
+  ),
+
+  benchmark.measureFunction(
+    'array-push',
+    () => {
+      const result = [];
+      for (let i = 0; i < 10000; i++) {
+        result.push(i);
+      }
+      return result;
+    },
+    3
+  ),
 ]);
 
 // 메모리 사용량 비교

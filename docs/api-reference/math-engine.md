@@ -24,7 +24,7 @@ const mathEngine = new MathEngine({
   precision: 'float64',
   cacheSize: 10000,
   enableSIMD: true,
-  enableGPU: true
+  enableGPU: true,
 });
 
 // 벡터 연산
@@ -51,11 +51,11 @@ console.log(stats.mean); // 5.5
 
 ```typescript
 interface MathEngineOptions {
-  precision?: 'float32' | 'float64' | 'adaptive';  // 계산 정밀도
-  cacheSize?: number;                              // 캐시 크기 (기본값: 5000)
-  chunkSize?: number;                              // 청크 크기
-  enableSIMD?: boolean;                            // SIMD 최적화 활성화
-  enableGPU?: boolean;                             // GPU 가속 활성화
+  precision?: 'float32' | 'float64' | 'adaptive'; // 계산 정밀도
+  cacheSize?: number; // 캐시 크기 (기본값: 5000)
+  chunkSize?: number; // 청크 크기
+  enableSIMD?: boolean; // SIMD 최적화 활성화
+  enableGPU?: boolean; // GPU 가속 활성화
 }
 ```
 
@@ -160,14 +160,14 @@ const product = await mathEngine.multiplyMatrices(a, b);
 
 ```typescript
 interface StatisticsResult {
-  mean: number;      // 평균
-  median: number;    // 중앙값
-  mode: number[];    // 최빈값들
-  variance: number;  // 분산
-  stdDev: number;    // 표준편차
-  min: number;       // 최솟값
-  max: number;       // 최댓값
-  count: number;     // 데이터 개수
+  mean: number; // 평균
+  median: number; // 중앙값
+  mode: number[]; // 최빈값들
+  variance: number; // 분산
+  stdDev: number; // 표준편차
+  min: number; // 최솟값
+  max: number; // 최댓값
+  count: number; // 데이터 개수
 }
 ```
 
@@ -203,20 +203,20 @@ const q3 = mathEngine.quantile(data, 0.75); // 3사분위수
 ```typescript
 // 고성능 설정
 const highPerformanceEngine = new MathEngine({
-  precision: 'float32',    // 더 빠른 계산
-  cacheSize: 50000,        // 큰 캐시
-  chunkSize: 10000,        // 큰 청크
-  enableSIMD: true,        // SIMD 최적화
-  enableGPU: true          // GPU 가속
+  precision: 'float32', // 더 빠른 계산
+  cacheSize: 50000, // 큰 캐시
+  chunkSize: 10000, // 큰 청크
+  enableSIMD: true, // SIMD 최적화
+  enableGPU: true, // GPU 가속
 });
 
 // 메모리 효율적 설정
 const memoryEfficientEngine = new MathEngine({
-  precision: 'adaptive',   // 적응형 정밀도
-  cacheSize: 1000,         // 작은 캐시
-  chunkSize: 1000,         // 작은 청크
-  enableSIMD: false,       // SIMD 비활성화
-  enableGPU: false         // GPU 비활성화
+  precision: 'adaptive', // 적응형 정밀도
+  cacheSize: 1000, // 작은 캐시
+  chunkSize: 1000, // 작은 청크
+  enableSIMD: false, // SIMD 비활성화
+  enableGPU: false, // GPU 비활성화
 });
 ```
 
@@ -241,19 +241,19 @@ const stats = await mathEngine.statistics(bigData);
 // 머신러닝 기본 연산
 async function linearRegression(X: number[][], y: number[]) {
   const engine = new MathEngine({ precision: 'float64' });
-  
+
   // X를 행렬로 변환
   const xMatrix = engine.createMatrix(X.flat(), X.length, X[0].length);
-  
+
   // X^T 계산
   const xTranspose = engine.transpose(xMatrix);
-  
+
   // X^T * X 계산
   const xtx = await engine.multiplyMatrices(xTranspose, xMatrix);
-  
+
   // y 벡터 생성
   const yVector = engine.vectorFromArray(y);
-  
+
   // 계수 계산 로직...
   return { coefficients: [], rSquared: 0 };
 }
@@ -261,18 +261,18 @@ async function linearRegression(X: number[][], y: number[]) {
 // 데이터 분석 파이프라인
 async function analyzeDataset(data: number[][]) {
   const engine = new MathEngine();
-  
+
   const results = await Promise.all(
     data.map(async (column, index) => {
       const stats = await engine.statistics(column);
       return {
         column: index,
         ...stats,
-        histogram: engine.histogram(column, 20)
+        histogram: engine.histogram(column, 20),
       };
     })
   );
-  
+
   // 상관관계 매트릭스 계산
   const correlations = [];
   for (let i = 0; i < data.length; i++) {
@@ -281,7 +281,7 @@ async function analyzeDataset(data: number[][]) {
       correlations.push({ i, j, correlation: corr });
     }
   }
-  
+
   return { columnStats: results, correlations };
 }
 ```
@@ -342,19 +342,19 @@ interface StatisticsResult {
 
 ### 벡터 연산 성능
 
-| 연산 | 크기 | 시간 (ms) | 처리량 (ops/sec) |
-|-------|------|-----------|------------------|
-|  덧셈  | 10K | 0.5 | 20M |
-|  내적  | 10K | 0.3 | 33M |
-| 정규화 | 10K | 0.8 | 12.5M |
+| 연산   | 크기 | 시간 (ms) | 처리량 (ops/sec) |
+| ------ | ---- | --------- | ---------------- |
+| 덧셈   | 10K  | 0.5       | 20M              |
+| 내적   | 10K  | 0.3       | 33M              |
+| 정규화 | 10K  | 0.8       | 12.5M            |
 
 ### 행렬 연산 성능
 
-| 연산 | 크기 | 시간 (ms) | 메모리 (MB) |
-|------|------|-----------|-------------|
-| 곱셈 | 100x100 | 2.1 | 0.4 |
-| 곱셈 | 500x500 | 125 | 9.5 |
-| 곱셈 | 1000x1000 | 980 | 38 |
+| 연산 | 크기      | 시간 (ms) | 메모리 (MB) |
+| ---- | --------- | --------- | ----------- |
+| 곱셈 | 100x100   | 2.1       | 0.4         |
+| 곱셈 | 500x500   | 125       | 9.5         |
+| 곱셈 | 1000x1000 | 980       | 38          |
 
 ## 모범 사례
 
@@ -376,8 +376,8 @@ const generalEngine = new MathEngine({ precision: 'adaptive' });
 ```typescript
 // 대용량 데이터 처리 시 청크 크기 조정
 const bigDataEngine = new MathEngine({
-  chunkSize: 50000,  // 큰 청크로 처리 효율성 향상
-  cacheSize: 100000  // 충분한 캐시 공간 확보
+  chunkSize: 50000, // 큰 청크로 처리 효율성 향상
+  cacheSize: 100000, // 충분한 캐시 공간 확보
 });
 ```
 

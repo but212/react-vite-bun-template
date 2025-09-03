@@ -38,7 +38,7 @@ console.log(pipeline(3)); // "8"
 import { pipeAsync } from '@/lib/utils/pipe';
 
 const fetchUser = async (id: number) => ({ id, name: `User ${id}` });
-const formatUser = (user: { id: number, name: string }) => `ID: ${user.id}, Name: ${user.name}`;
+const formatUser = (user: { id: number; name: string }) => `ID: ${user.id}, Name: ${user.name}`;
 const logResult = async (message: string) => {
   console.log(message);
   return message;
@@ -76,7 +76,7 @@ const processData = pipe(
   (words: string[]) => words.join('-')
 );
 
-console.log(processData("  Hello World  ")); // "hello-world"
+console.log(processData('  Hello World  ')); // "hello-world"
 ```
 
 #### `pipeAsync(...fns): (value) => Promise<result>`
@@ -88,9 +88,9 @@ console.log(processData("  Hello World  ")); // "hello-world"
 ```typescript
 const processUserData = pipeAsync(
   async (userId: number) => await fetchUser(userId),
-  (user) => ({ ...user, processed: true }),
-  async (user) => await saveUser(user),
-  (savedUser) => `User ${savedUser.id} processed successfully`
+  user => ({ ...user, processed: true }),
+  async user => await saveUser(user),
+  savedUser => `User ${savedUser.id} processed successfully`
 );
 
 const result = await processUserData(123);
@@ -175,7 +175,7 @@ const double = (x: number) => x * 2;
 const negate = (x: number) => -x;
 
 const conditionalPipe = pipeIf(isPositive, double, negate);
-console.log(conditionalPipe(5));  // 10
+console.log(conditionalPipe(5)); // 10
 console.log(conditionalPipe(-3)); // 3
 ```
 
@@ -228,23 +228,23 @@ const processUserProfile = pipe(
     return rawData;
   },
   // 2. 데이터 정규화
-  (data) => ({
+  data => ({
     email: data.email.toLowerCase().trim(),
     name: data.name?.trim() || '',
-    age: parseInt(data.age) || 0
+    age: parseInt(data.age) || 0,
   }),
   // 3. 유효성 검사
-  (user) => {
+  user => {
     if (user.age < 0 || user.age > 150) {
       throw new Error('Invalid age');
     }
     return user;
   },
   // 4. 최종 변환
-  (user) => ({
+  user => ({
     ...user,
     id: generateId(),
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
   })
 );
 ```
@@ -253,18 +253,15 @@ const processUserProfile = pipe(
 
 ```typescript
 // 단계별 에러 처리
-const robustPipeline = pipeSafe(
-  { error: 'Processing failed', data: null },
-  (error, input) => {
-    console.error('Pipeline error:', error.message);
-    console.error('Input was:', input);
-  }
-);
+const robustPipeline = pipeSafe({ error: 'Processing failed', data: null }, (error, input) => {
+  console.error('Pipeline error:', error.message);
+  console.error('Input was:', input);
+});
 
 const processWithFallback = robustPipeline(
   (data: string) => JSON.parse(data),
-  (obj) => obj.value,
-  (value) => value * 2
+  obj => obj.value,
+  value => value * 2
 );
 
 // 안전한 실행
@@ -277,13 +274,21 @@ const result2 = processWithFallback('invalid json'); // { error: 'Processing fai
 ```typescript
 const processNumber = pipe(
   (x: number) => x,
-  pipeIf((x: number) => x < 0, Math.abs, (x: number) => x),
-  pipeIf((x: number) => x > 100, (x: number) => 100, (x: number) => x),
+  pipeIf(
+    (x: number) => x < 0,
+    Math.abs,
+    (x: number) => x
+  ),
+  pipeIf(
+    (x: number) => x > 100,
+    (x: number) => 100,
+    (x: number) => x
+  ),
   (x: number) => Math.round(x)
 );
 
-console.log(processNumber(-50));  // 50
-console.log(processNumber(150));  // 100
+console.log(processNumber(-50)); // 50
+console.log(processNumber(150)); // 100
 console.log(processNumber(42.7)); // 43
 ```
 
@@ -358,9 +363,9 @@ const normalizeString = pipe(trim, toLowerCase, removeSpaces);
 ```typescript
 // TypeScript의 타입 추론을 활용
 const pipeline = pipe(
-  (x: number) => x.toString(),    // number -> string
-  (s: string) => s.length,        // string -> number
-  (n: number) => n > 5            // number -> boolean
+  (x: number) => x.toString(), // number -> string
+  (s: string) => s.length, // string -> number
+  (n: number) => n > 5 // number -> boolean
 );
 // 타입: (x: number) => boolean
 ```
@@ -369,21 +374,14 @@ const pipeline = pipe(
 
 ```typescript
 // 중요한 파이프라인에는 에러 처리 추가
-const criticalPipeline = pipeSafe(
-  defaultValue,
-  (error, input) => logError(error, input)
-);
+const criticalPipeline = pipeSafe(defaultValue, (error, input) => logError(error, input));
 ```
 
 ### 4. 성능 고려사항
 
 ```typescript
 // 비용이 큰 연산은 병렬로 처리
-const expensiveOperations = pipeParallelAsync(
-  heavyComputation1,
-  heavyComputation2,
-  heavyComputation3
-);
+const expensiveOperations = pipeParallelAsync(heavyComputation1, heavyComputation2, heavyComputation3);
 ```
 
 ## 관련 문서

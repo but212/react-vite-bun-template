@@ -18,7 +18,7 @@ import { StatisticsEngine } from '@/lib/utils/statistics-engine';
 
 // 엔진 초기화
 const engine = new StatisticsEngine({
-  chunkSize: 2048
+  chunkSize: 2048,
 });
 
 // 샘플 데이터
@@ -57,7 +57,7 @@ const histogram = engine.histogram(data, 5);
 
 ```typescript
 interface StatisticsEngineOptions {
-  chunkSize?: number;  // 청크 크기 (기본값: 1024)
+  chunkSize?: number; // 청크 크기 (기본값: 1024)
 }
 ```
 
@@ -65,14 +65,14 @@ interface StatisticsEngineOptions {
 
 ```typescript
 interface StatisticsResult {
-  mean: number;      // 평균
-  variance: number;  // 분산
-  stddev: number;    // 표준편차
-  min: number;       // 최솟값
-  max: number;       // 최댓값
-  median: number;    // 중앙값
-  mode: number[];    // 최빈값들
-  count: number;     // 데이터 개수
+  mean: number; // 평균
+  variance: number; // 분산
+  stddev: number; // 표준편차
+  min: number; // 최솟값
+  max: number; // 최댓값
+  median: number; // 중앙값
+  mode: number[]; // 최빈값들
+  count: number; // 데이터 개수
 }
 ```
 
@@ -126,10 +126,10 @@ const quickStats = engine.basicStatistics([1, 2, 3, 4, 5]);
 ```typescript
 const data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-const q25 = engine.quantile(data, 0.25);  // 1사분위수: 3.25
-const q50 = engine.quantile(data, 0.50);  // 중앙값: 5.5
-const q75 = engine.quantile(data, 0.75);  // 3사분위수: 7.75
-const q95 = engine.quantile(data, 0.95);  // 95번째 백분위수: 9.55
+const q25 = engine.quantile(data, 0.25); // 1사분위수: 3.25
+const q50 = engine.quantile(data, 0.5); // 중앙값: 5.5
+const q75 = engine.quantile(data, 0.75); // 3사분위수: 7.75
+const q95 = engine.quantile(data, 0.95); // 95번째 백분위수: 9.55
 ```
 
 ### `correlation(x: number[], y: number[]): number`
@@ -177,8 +177,8 @@ const random = engine.correlation([1, 3, 2, 4], [2, 1, 4, 3]); // ~0.0
 const data = [1, 1, 2, 2, 2, 3, 3, 4, 5, 5, 5, 5];
 const hist = engine.histogram(data, 5);
 
-console.log('구간:', hist.bins);     // [1, 1.8, 2.6, 3.4, 4.2]
-console.log('빈도:', hist.counts);   // [2, 3, 2, 1, 4]
+console.log('구간:', hist.bins); // [1, 1.8, 2.6, 3.4, 4.2]
+console.log('빈도:', hist.counts); // [2, 3, 2, 1, 4]
 
 // 시각화 예시
 hist.bins.forEach((bin, i) => {
@@ -194,9 +194,7 @@ hist.bins.forEach((bin, i) => {
 
 ```typescript
 // 100만 개 데이터 포인트 처리
-const bigData = Array.from({ length: 1000000 }, () => 
-  Math.random() * 1000 + Math.random() * 100
-);
+const bigData = Array.from({ length: 1000000 }, () => Math.random() * 1000 + Math.random() * 100);
 
 const engine = new StatisticsEngine({ chunkSize: 10000 });
 const stats = await engine.statistics(bigData);
@@ -211,21 +209,21 @@ console.log(`표준편차: ${stats.stddev.toFixed(2)}`);
 ```typescript
 function analyzeDataQuality(data: number[]) {
   const stats = engine.basicStatistics(data);
-  
+
   // 이상치 탐지 (3-sigma 규칙)
   const outlierThreshold = stats.mean + 3 * stats.stddev;
   const outliers = data.filter(x => Math.abs(x - stats.mean) > outlierThreshold);
-  
+
   // 분포 분석
   const q25 = engine.quantile(data, 0.25);
   const q75 = engine.quantile(data, 0.75);
   const iqr = q75 - q25;
-  
+
   return {
     basic: stats,
     outliers: outliers.length,
     iqr,
-    skewness: (stats.mean - stats.median) / stats.stddev
+    skewness: (stats.mean - stats.median) / stats.stddev,
   };
 }
 ```
@@ -234,26 +232,22 @@ function analyzeDataQuality(data: number[]) {
 
 ```typescript
 async function compareGroups(groupA: number[], groupB: number[]) {
-  const [statsA, statsB] = await Promise.all([
-    engine.statistics(groupA),
-    engine.statistics(groupB)
-  ]);
-  
+  const [statsA, statsB] = await Promise.all([engine.statistics(groupA), engine.statistics(groupB)]);
+
   // 효과 크기 계산 (Cohen's d)
   const pooledStd = Math.sqrt(
     ((groupA.length - 1) * statsA.variance + (groupB.length - 1) * statsB.variance) /
-    (groupA.length + groupB.length - 2)
+      (groupA.length + groupB.length - 2)
   );
-  
+
   const effectSize = (statsA.mean - statsB.mean) / pooledStd;
-  
+
   return {
     groupA: statsA,
     groupB: statsB,
     difference: statsA.mean - statsB.mean,
     effectSize,
-    interpretation: Math.abs(effectSize) > 0.8 ? 'Large' : 
-                   Math.abs(effectSize) > 0.5 ? 'Medium' : 'Small'
+    interpretation: Math.abs(effectSize) > 0.8 ? 'Large' : Math.abs(effectSize) > 0.5 ? 'Medium' : 'Small',
   };
 }
 ```
@@ -264,24 +258,22 @@ async function compareGroups(groupA: number[], groupB: number[]) {
 function analyzeTimeSeries(values: number[], timestamps: number[]) {
   // 기본 통계
   const stats = engine.basicStatistics(values);
-  
+
   // 트렌드 분석 (시간과 값의 상관관계)
   const trend = engine.correlation(timestamps, values);
-  
+
   // 변동성 분석
-  const returns = values.slice(1).map((val, i) => 
-    (val - values[i]) / values[i]
-  );
+  const returns = values.slice(1).map((val, i) => (val - values[i]) / values[i]);
   const volatility = engine.basicStatistics(returns).stddev;
-  
+
   // 분포 분석
   const histogram = engine.histogram(values, 20);
-  
+
   return {
     summary: stats,
     trend: trend > 0.1 ? 'Increasing' : trend < -0.1 ? 'Decreasing' : 'Stable',
     volatility,
-    distribution: histogram
+    distribution: histogram,
   };
 }
 ```
@@ -341,8 +333,8 @@ const median = engine.quantile(data, 0.5);
 ```typescript
 // 히스토그램 결과
 interface HistogramResult {
-  bins: number[];     // 구간 시작값들
-  counts: number[];   // 각 구간의 빈도
+  bins: number[]; // 구간 시작값들
+  counts: number[]; // 각 구간의 빈도
 }
 
 // 기본 통계 결과 (중앙값, 최빈값 제외)

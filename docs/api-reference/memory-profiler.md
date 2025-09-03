@@ -20,12 +20,12 @@ Memory Profiler는 애플리케이션의 메모리 사용 패턴을 분석하고
 import { MemoryProfiler } from '@/lib/utils/memory-profiler';
 
 const profiler = new MemoryProfiler({
-  sampleInterval: 1000,     // 1초마다 샘플링
-  maxSamples: 1000,         // 최대 1000개 샘플 저장
+  sampleInterval: 1000, // 1초마다 샘플링
+  maxSamples: 1000, // 최대 1000개 샘플 저장
   thresholds: {
-    warning: 100 * 1024 * 1024,  // 100MB 경고
-    critical: 500 * 1024 * 1024  // 500MB 위험
-  }
+    warning: 100 * 1024 * 1024, // 100MB 경고
+    critical: 500 * 1024 * 1024, // 500MB 위험
+  },
 });
 
 // 프로파일링 시작
@@ -48,11 +48,11 @@ console.log('평균 사용량:', report.average);
 
 ```typescript
 interface MemoryProfilerOptions {
-  sampleInterval?: number;    // 샘플링 간격 (ms)
-  maxSamples?: number;        // 최대 샘플 수
+  sampleInterval?: number; // 샘플링 간격 (ms)
+  maxSamples?: number; // 최대 샘플 수
   thresholds?: {
-    warning?: number;         // 경고 임계값 (bytes)
-    critical?: number;        // 위험 임계값 (bytes)
+    warning?: number; // 경고 임계값 (bytes)
+    critical?: number; // 위험 임계값 (bytes)
   };
   onThresholdExceeded?: (level: 'warning' | 'critical', usage: MemoryUsage) => void;
 }
@@ -70,12 +70,12 @@ interface MemoryProfilerOptions {
 
 ```typescript
 interface MemoryReport {
-  duration: number;           // 프로파일링 기간 (ms)
-  samples: MemoryUsage[];     // 메모리 샘플들
-  peak: MemoryUsage;          // 최대 메모리 사용량
-  average: MemoryUsage;       // 평균 메모리 사용량
+  duration: number; // 프로파일링 기간 (ms)
+  samples: MemoryUsage[]; // 메모리 샘플들
+  peak: MemoryUsage; // 최대 메모리 사용량
+  average: MemoryUsage; // 평균 메모리 사용량
   leakDetection: LeakAnalysis; // 메모리 누수 분석
-  gcEvents: GCEvent[];        // 가비지 컬렉션 이벤트
+  gcEvents: GCEvent[]; // 가비지 컬렉션 이벤트
 }
 ```
 
@@ -96,14 +96,14 @@ const profiler = new MemoryProfiler({
   sampleInterval: 500,
   onThresholdExceeded: (level, usage) => {
     console.warn(`메모리 ${level} 임계값 초과:`, usage.heapUsed);
-    
+
     if (level === 'critical') {
       // 긴급 조치: 가비지 컬렉션 강제 실행
       if (global.gc) {
         global.gc();
       }
     }
-  }
+  },
 });
 
 // 의심스러운 코드 블록 모니터링
@@ -130,57 +130,52 @@ async function profileFunction<T>(
   name: string
 ): Promise<{ result: T; memoryUsage: MemoryUsage }> {
   const profiler = new MemoryProfiler();
-  
+
   profiler.start();
   const result = await fn();
   const report = profiler.stop();
-  
+
   console.log(`${name} 메모리 사용량:`, {
     peak: report.peak.heapUsed,
     average: report.average.heapUsed,
-    duration: report.duration
+    duration: report.duration,
   });
-  
+
   return { result, memoryUsage: report.peak };
 }
 
 // 사용 예제
-const { result, memoryUsage } = await profileFunction(
-  async () => {
-    const largeArray = new Array(1000000).fill(0);
-    return largeArray.map(x => x * 2);
-  },
-  'large-array-processing'
-);
+const { result, memoryUsage } = await profileFunction(async () => {
+  const largeArray = new Array(1000000).fill(0);
+  return largeArray.map(x => x * 2);
+}, 'large-array-processing');
 ```
 
 ### 메모리 사용량 비교
 
 ```typescript
 class MemoryComparator {
-  async compareImplementations<T>(
-    implementations: Array<{ name: string; fn: () => Promise<T> }>
-  ) {
+  async compareImplementations<T>(implementations: Array<{ name: string; fn: () => Promise<T> }>) {
     const results = [];
-    
+
     for (const impl of implementations) {
       // 가비지 컬렉션으로 초기 상태 정리
       if (global.gc) global.gc();
-      
+
       const profiler = new MemoryProfiler();
       profiler.start();
-      
+
       await impl.fn();
-      
+
       const report = profiler.stop();
       results.push({
         name: impl.name,
         peakMemory: report.peak.heapUsed,
         averageMemory: report.average.heapUsed,
-        duration: report.duration
+        duration: report.duration,
       });
     }
-    
+
     return results.sort((a, b) => a.peakMemory - b.peakMemory);
   }
 }
@@ -196,7 +191,7 @@ const results = await comparator.compareImplementations([
         result = result.concat([i]);
       }
       return result;
-    }
+    },
   },
   {
     name: 'array-push',
@@ -206,8 +201,8 @@ const results = await comparator.compareImplementations([
         result.push(i);
       }
       return result;
-    }
-  }
+    },
+  },
 ]);
 ```
 
@@ -221,23 +216,26 @@ class LongTermMemoryMonitor {
   constructor() {
     this.profiler = new MemoryProfiler({
       sampleInterval: 5000, // 5초마다
-      maxSamples: 720,      // 1시간분 데이터
+      maxSamples: 720, // 1시간분 데이터
       onThresholdExceeded: (level, usage) => {
         this.handleThresholdExceeded(level, usage);
-      }
+      },
     });
   }
 
   start() {
     this.profiler.start();
-    
+
     // 1시간마다 리포트 생성
-    setInterval(() => {
-      const report = this.profiler.stop();
-      this.reports.push(report);
-      this.analyzeReport(report);
-      this.profiler.start(); // 재시작
-    }, 60 * 60 * 1000);
+    setInterval(
+      () => {
+        const report = this.profiler.stop();
+        this.reports.push(report);
+        this.analyzeReport(report);
+        this.profiler.start(); // 재시작
+      },
+      60 * 60 * 1000
+    );
   }
 
   private analyzeReport(report: MemoryReport) {
@@ -245,8 +243,9 @@ class LongTermMemoryMonitor {
     if (this.reports.length >= 3) {
       const recent = this.reports.slice(-3);
       const trend = this.calculateTrend(recent);
-      
-      if (trend > 0.1) { // 10% 이상 증가 트렌드
+
+      if (trend > 0.1) {
+        // 10% 이상 증가 트렌드
         console.warn('메모리 사용량 증가 트렌드 감지');
       }
     }
@@ -271,26 +270,27 @@ function memoryMonitoringMiddleware() {
   const profiler = new MemoryProfiler({
     sampleInterval: 1000,
     thresholds: {
-      warning: 200 * 1024 * 1024,  // 200MB
-      critical: 400 * 1024 * 1024  // 400MB
-    }
+      warning: 200 * 1024 * 1024, // 200MB
+      critical: 400 * 1024 * 1024, // 400MB
+    },
   });
 
   return (req: Request, res: Response, next: NextFunction) => {
     const requestProfiler = new MemoryProfiler();
     requestProfiler.start();
-    
+
     res.on('finish', () => {
       const report = requestProfiler.stop();
-      
-      if (report.peak.heapUsed > 50 * 1024 * 1024) { // 50MB 이상
+
+      if (report.peak.heapUsed > 50 * 1024 * 1024) {
+        // 50MB 이상
         console.warn(`High memory request: ${req.path}`, {
           peak: report.peak.heapUsed,
-          duration: report.duration
+          duration: report.duration,
         });
       }
     });
-    
+
     next();
   };
 }
@@ -306,27 +306,28 @@ async function processBatchWithMemoryControl<T>(
 ) {
   const profiler = new MemoryProfiler({
     thresholds: {
-      warning: 300 * 1024 * 1024  // 300MB
+      warning: 300 * 1024 * 1024, // 300MB
     },
     onThresholdExceeded: () => {
       // 메모리 압박 시 가비지 컬렉션 실행
       if (global.gc) global.gc();
-    }
+    },
   });
 
   profiler.start();
 
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
-    
+
     await Promise.all(batch.map(processor));
-    
+
     // 배치마다 메모리 체크
     const snapshot = profiler.takeSnapshot();
-    if (snapshot.heapUsed > 250 * 1024 * 1024) { // 250MB 초과 시
+    if (snapshot.heapUsed > 250 * 1024 * 1024) {
+      // 250MB 초과 시
       console.log('메모리 정리 실행...');
       if (global.gc) global.gc();
-      
+
       // 잠시 대기하여 GC가 완료되도록 함
       await new Promise(resolve => setTimeout(resolve, 100));
     }
@@ -343,10 +344,10 @@ async function processBatchWithMemoryControl<T>(
 
 ```typescript
 interface MemoryUsage {
-  rss: number;          // Resident Set Size
-  heapTotal: number;    // 할당된 힙 메모리
-  heapUsed: number;     // 사용 중인 힙 메모리
-  external: number;     // V8 외부 메모리
+  rss: number; // Resident Set Size
+  heapTotal: number; // 할당된 힙 메모리
+  heapUsed: number; // 사용 중인 힙 메모리
+  external: number; // V8 외부 메모리
   arrayBuffers: number; // ArrayBuffer 메모리
 }
 ```
@@ -355,9 +356,9 @@ interface MemoryUsage {
 
 ```typescript
 interface LeakAnalysis {
-  isLeaking: boolean;     // 누수 여부
-  leakRate: number;       // 누수율 (MB/s)
-  confidence: number;     // 신뢰도 (0-1)
+  isLeaking: boolean; // 누수 여부
+  leakRate: number; // 누수율 (MB/s)
+  confidence: number; // 신뢰도 (0-1)
   suspiciousPatterns: string[]; // 의심스러운 패턴들
 }
 ```
@@ -366,11 +367,11 @@ interface LeakAnalysis {
 
 ```typescript
 interface GCEvent {
-  timestamp: number;      // 발생 시간
-  type: string;          // GC 타입
-  duration: number;      // 소요 시간 (ms)
-  memoryBefore: number;  // GC 전 메모리
-  memoryAfter: number;   // GC 후 메모리
+  timestamp: number; // 발생 시간
+  type: string; // GC 타입
+  duration: number; // 소요 시간 (ms)
+  memoryBefore: number; // GC 전 메모리
+  memoryAfter: number; // GC 후 메모리
 }
 ```
 

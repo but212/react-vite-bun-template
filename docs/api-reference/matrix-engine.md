@@ -19,7 +19,7 @@ const engine = new MatrixEngine({
   precision: 'adaptive',
   cacheSize: 1000,
   chunkSize: 2048,
-  enableGPU: true
+  enableGPU: true,
 });
 
 // 행렬 생성
@@ -45,10 +45,10 @@ const det = engine.determinant(matrixA);
 
 ```typescript
 interface MatrixEngineOptions {
-  precision?: 'float32' | 'float64' | 'adaptive';  // 계산 정밀도
-  cacheSize?: number;                              // 캐시 크기 (기본값: 500)
-  chunkSize?: number;                              // 청크 크기 (기본값: 1024)
-  enableGPU?: boolean;                             // GPU 가속 활성화
+  precision?: 'float32' | 'float64' | 'adaptive'; // 계산 정밀도
+  cacheSize?: number; // 캐시 크기 (기본값: 500)
+  chunkSize?: number; // 청크 크기 (기본값: 1024)
+  enableGPU?: boolean; // GPU 가속 활성화
 }
 ```
 
@@ -56,10 +56,10 @@ interface MatrixEngineOptions {
 
 ```typescript
 interface Matrix {
-  data: Float32Array | Float64Array;  // 행렬 데이터
-  rows: number;                       // 행 수
-  cols: number;                       // 열 수
-  precision: 'float32' | 'float64';   // 데이터 정밀도
+  data: Float32Array | Float64Array; // 행렬 데이터
+  rows: number; // 행 수
+  cols: number; // 열 수
+  precision: 'float32' | 'float64'; // 데이터 정밀도
 }
 ```
 
@@ -243,7 +243,7 @@ try {
 // 대용량 행렬 처리 시 메모리 사용량 모니터링
 const engine = new MatrixEngine({
   cacheSize: 100, // 캐시 크기 제한
-  chunkSize: 1024 // 청크 크기 조정
+  chunkSize: 1024, // 청크 크기 조정
 });
 
 // 필요시 캐시 수동 정리 (내부 메서드)

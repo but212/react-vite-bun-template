@@ -30,12 +30,12 @@ import {
 export interface UseStreamOptions<_T> extends DataStreamOptions {
   /**
    * 스트림 인스턴스를 재사용할지 여부입니다.
-   * 
+   *
    * @remarks
    * - `true`: 동일한 옵션으로 생성된 스트림 인스턴스를 재사용하여 메모리 효율성을 높입니다.
    * - `false`: 매번 새로운 스트림 인스턴스를 생성합니다.
    * - 옵션이 변경되면 자동으로 새 인스턴스가 생성됩니다.
-   * 
+   *
    * @default true
    */
   reuseInstance?: boolean;
@@ -63,12 +63,12 @@ export interface UseStreamOptions<_T> extends DataStreamOptions {
 export interface UseStreamReturn<T> {
   /**
    * 데이터를 청크 단위로 병렬 비동기 처리하는 메인 메서드입니다.
-   * 
+   *
    * @template R - 처리 결과의 타입
    * @param data - 처리할 전체 데이터 배열 (readonly로 원본 데이터 보호)
    * @param processor - 각 청크를 처리하는 비동기 함수
    * @returns 처리 결과, 오류 정보, 메트릭을 포함한 ProcessResult
-   * 
+   *
    * @example
    * ```typescript
    * const result = await process(users, async (chunk) => {
@@ -81,11 +81,11 @@ export interface UseStreamReturn<T> {
   /**
    * 함수형 스트림 체이닝을 시작하는 메서드입니다.
    * 지연 평가를 통해 메모리 효율적인 데이터 변환 파이프라인을 구성할 수 있습니다.
-   * 
+   *
    * @template U - 체이닝할 데이터의 타입 (T의 서브타입)
    * @param data - 체이닝할 데이터 배열
    * @returns 스트림 체인 객체
-   * 
+   *
    * @example
    * ```typescript
    * const result = await chain(users)
@@ -99,10 +99,10 @@ export interface UseStreamReturn<T> {
   /**
    * 내부 DataStream 인스턴스입니다.
    * 고급 사용자가 직접 스트림 API에 접근할 때 사용합니다.
-   * 
+   *
    * @remarks
    * 일반적으로는 훅에서 제공하는 래핑된 메서드들을 사용하는 것을 권장합니다.
-   * 
+   *
    * @example
    * ```typescript
    * // 고급 사용법
@@ -114,13 +114,13 @@ export interface UseStreamReturn<T> {
   /**
    * 진행률 콜백과 함께 데이터를 처리하는 메서드입니다.
    * 기존 스트림 설정을 유지하면서 임시로 진행률 콜백을 추가할 수 있습니다.
-   * 
+   *
    * @template R - 처리 결과의 타입
    * @param data - 처리할 전체 데이터 배열
    * @param processor - 각 청크를 처리하는 비동기 함수
    * @param onProgress - 진행률 콜백 함수 (선택사항)
    * @returns 처리 결과, 오류 정보, 메트릭을 포함한 ProcessResult
-   * 
+   *
    * @example
    * ```typescript
    * const result = await processWithProgress(
@@ -141,12 +141,12 @@ export interface UseStreamReturn<T> {
   /**
    * 조건에 맞는 항목들만 필터링하는 편의 메서드입니다.
    * 내부적으로 함수형 체이닝을 사용하여 메모리 효율적으로 처리합니다.
-   * 
+   *
    * @template U - 필터링할 데이터의 타입 (T의 서브타입)
    * @param data - 필터링할 데이터 배열
    * @param predicate - 각 항목에 적용할 필터링 조건 함수
    * @returns 필터링된 항목들의 배열
-   * 
+   *
    * @example
    * ```typescript
    * const activeUsers = await filter(users, user => user.isActive);
@@ -158,13 +158,13 @@ export interface UseStreamReturn<T> {
   /**
    * 각 항목을 변환하는 편의 메서드입니다.
    * 내부적으로 함수형 체이닝을 사용하여 메모리 효율적으로 처리합니다.
-   * 
+   *
    * @template U - 변환할 데이터의 타입 (T의 서브타입)
    * @template R - 변환 결과의 타입
    * @param data - 변환할 데이터 배열
    * @param mapper - 각 항목에 적용할 변환 함수
    * @returns 변환된 항목들의 배열
-   * 
+   *
    * @example
    * ```typescript
    * const userNames = await map(users, user => user.name);
@@ -176,14 +176,14 @@ export interface UseStreamReturn<T> {
   /**
    * 배열을 단일 값으로 집계하는 편의 메서드입니다.
    * 내부적으로 함수형 체이닝을 사용하여 메모리 효율적으로 처리합니다.
-   * 
+   *
    * @template U - 집계할 데이터의 타입 (T의 서브타입)
    * @template R - 집계 결과의 타입
    * @param data - 집계할 데이터 배열
    * @param reducer - 누적 함수 (acc, item) => acc'
    * @param initialValue - 누적의 초기값
    * @returns 집계된 결과값
-   * 
+   *
    * @example
    * ```typescript
    * const totalAge = await reduce(users, (sum, user) => sum + user.age, 0);
@@ -198,19 +198,19 @@ export interface UseStreamReturn<T> {
   /**
    * 각 항목에 대해 부작용을 수행하는 편의 메서드입니다.
    * 내부적으로 함수형 체이닝을 사용하여 메모리 효율적으로 처리합니다.
-   * 
+   *
    * @template U - 처리할 데이터의 타입 (T의 서브타입)
    * @param data - 처리할 데이터 배열
    * @param callback - 각 항목에 적용할 콜백 함수 (동기/비동기 모두 지원)
    * @returns void Promise (모든 항목 처리 완료 시 resolve)
-   * 
+   *
    * @example
    * ```typescript
    * // 동기 콜백
    * await forEach(users, user => {
    *   console.log(`Processing user: ${user.name}`);
    * });
-   * 
+   *
    * // 비동기 콜백
    * await forEach(users, async user => {
    *   await sendWelcomeEmail(user.email);
@@ -222,14 +222,14 @@ export interface UseStreamReturn<T> {
 
 /**
  * DataStream을 React 컴포넌트에서 사용하기 위한 커스텀 훅입니다.
- * 
- * 대용량 데이터를 청크 단위로 효율적으로 처리하며, 진행률 추적, 재시도, 취소, 
+ *
+ * 대용량 데이터를 청크 단위로 효율적으로 처리하며, 진행률 추적, 재시도, 취소,
  * 백프레셔, 함수형 체이닝 등 프로덕션 환경에 필요한 모든 기능을 제공합니다.
- * 
+ *
  * @template T - 처리할 데이터 항목의 타입
  * @param options - 스트림 처리 옵션 (UseStreamOptions)
  * @returns 스트림 처리를 위한 메서드들과 유틸리티 (UseStreamReturn)
- * 
+ *
  * @remarks
  * ### 주요 특징
  * - **메모리 효율성**: 청크 단위 처리로 대용량 데이터도 안전하게 처리
@@ -240,12 +240,12 @@ export interface UseStreamReturn<T> {
  * - **백프레셔**: 메모리 사용량 기반 자동 속도 조절
  * - **함수형 체이닝**: map, filter, reduce 등 함수형 프로그래밍 지원
  * - **타입 안전성**: 완전한 TypeScript 지원과 제네릭 타입
- * 
+ *
  * ### 성능 최적화
  * - 스트림 인스턴스 재사용으로 메모리 효율성 향상
  * - useCallback을 통한 불필요한 리렌더링 방지
  * - 지연 평가 기반 함수형 체이닝으로 메모리 사용량 최소화
- * 
+ *
  * ### 사용 시나리오
  * - 대용량 데이터 변환 및 처리
  * - API 배치 요청 처리
@@ -399,7 +399,7 @@ export function useStream<T>(options: UseStreamOptions<T> = {}): UseStreamReturn
 
     // 새로운 스트림 인스턴스 생성
     const newStream = new DataStream<T>(streamOptions);
-    
+
     // 재사용 옵션이 활성화되면 ref에 저장
     if (reuseInstance) {
       streamRef.current = newStream;
@@ -415,6 +415,7 @@ export function useStream<T>(options: UseStreamOptions<T> = {}): UseStreamReturn
     streamOptions.concurrencyStrategy,
     streamOptions.backpressureCallback,
     streamOptions.signal,
+    streamOptions.onProgress,
   ]);
 
   /**

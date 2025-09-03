@@ -266,7 +266,7 @@ export class VectorEngine {
     if (vector.length === 0) {
       return 0;
     }
-    
+
     let sum = 0;
     for (let i = 0; i < vector.length; i++) {
       const value = vector.data[i];
@@ -287,7 +287,7 @@ export class VectorEngine {
     if (vector.length === 0) {
       throw new Error('빈 벡터는 정규화할 수 없습니다');
     }
-    
+
     const mag = this.magnitude(vector);
     if (mag === 0) {
       throw new Error('영벡터는 정규화할 수 없습니다');

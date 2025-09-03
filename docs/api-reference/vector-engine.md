@@ -22,7 +22,7 @@ import { VectorEngine } from '@/lib/utils/vector-engine';
 const engine = new VectorEngine({
   precision: 'float64',
   cacheSize: 1000,
-  enableSIMD: true
+  enableSIMD: true,
 });
 
 // 벡터 생성
@@ -48,10 +48,10 @@ const normalized = engine.normalize(v1); // 단위벡터
 
 ```typescript
 interface VectorEngineOptions {
-  precision?: 'float32' | 'float64';  // 계산 정밀도
-  cacheSize?: number;                 // 캐시 크기
-  chunkSize?: number;                 // 청크 크기
-  enableSIMD?: boolean;               // SIMD 최적화
+  precision?: 'float32' | 'float64'; // 계산 정밀도
+  cacheSize?: number; // 캐시 크기
+  chunkSize?: number; // 청크 크기
+  enableSIMD?: boolean; // SIMD 최적화
 }
 ```
 
@@ -110,7 +110,7 @@ interface VectorEngineOptions {
 const largeEngine = new VectorEngine({
   precision: 'float32',
   chunkSize: 100000,
-  enableSIMD: true
+  enableSIMD: true,
 });
 
 const bigVector1 = largeEngine.createRandomVector(1000000);
@@ -126,17 +126,14 @@ const result = await largeEngine.addVectors(bigVector1, bigVector2);
 class VectorCalculator {
   constructor(private engine: VectorEngine) {}
 
-  async calculateWeightedSum(
-    vectors: Vector[],
-    weights: number[]
-  ): Promise<Vector> {
+  async calculateWeightedSum(vectors: Vector[], weights: number[]): Promise<Vector> {
     let result = this.engine.createVector(vectors[0].length);
-    
+
     for (let i = 0; i < vectors.length; i++) {
       const weighted = this.engine.scalarMultiply(vectors[i], weights[i]);
       result = await this.engine.addVectors(result, weighted);
     }
-    
+
     return result;
   }
 
@@ -162,25 +159,22 @@ class KMeansVectorOps {
     }
 
     let sum = this.engine.createVector(points[0].length);
-    
+
     for (const point of points) {
       sum = await this.engine.addVectors(sum, point);
     }
-    
+
     return this.engine.scalarMultiply(sum, 1 / points.length);
   }
 
-  async findNearestCentroid(
-    point: Vector,
-    centroids: Vector[]
-  ): Promise<{ index: number; distance: number }> {
+  async findNearestCentroid(point: Vector, centroids: Vector[]): Promise<{ index: number; distance: number }> {
     let minDistance = Infinity;
     let nearestIndex = 0;
 
     for (let i = 0; i < centroids.length; i++) {
       const diff = await this.engine.subtractVectors(point, centroids[i]);
       const distance = this.engine.magnitude(diff);
-      
+
       if (distance < minDistance) {
         minDistance = distance;
         nearestIndex = i;
@@ -200,7 +194,7 @@ class KMeansVectorOps {
 // SIMD 최적화 활성화
 const optimizedEngine = new VectorEngine({
   enableSIMD: true,
-  precision: 'float32' // SIMD는 float32에서 더 효과적
+  precision: 'float32', // SIMD는 float32에서 더 효과적
 });
 
 // 대용량 벡터 연산에서 성능 향상 확인
@@ -208,11 +202,11 @@ const performanceTest = async () => {
   const size = 1000000;
   const v1 = optimizedEngine.createRandomVector(size);
   const v2 = optimizedEngine.createRandomVector(size);
-  
+
   const start = performance.now();
   await optimizedEngine.dotProduct(v1, v2);
   const end = performance.now();
-  
+
   console.log(`SIMD 내적 계산 시간: ${end - start}ms`);
 };
 ```
@@ -222,9 +216,9 @@ const performanceTest = async () => {
 ```typescript
 // 메모리 사용량 최적화
 const memoryEfficientEngine = new VectorEngine({
-  precision: 'float32',  // 메모리 사용량 절반
-  cacheSize: 500,        // 적절한 캐시 크기
-  chunkSize: 10000       // 청크 기반 처리
+  precision: 'float32', // 메모리 사용량 절반
+  cacheSize: 500, // 적절한 캐시 크기
+  chunkSize: 10000, // 청크 기반 처리
 });
 
 // 인플레이스 연산으로 메모리 절약
@@ -269,18 +263,18 @@ interface VectorEngineOptions {
 
 ### 연산별 성능 (1M 요소)
 
-| 연산 | SIMD 비활성화 | SIMD 활성화 | 성능 향상 |
-|------|---------------|-------------|-----------|
-| 덧셈 | 15ms | 4ms | 3.75x |
-| 내적 | 12ms | 3ms | 4x |
-| 정규화 | 20ms | 6ms | 3.33x |
+| 연산   | SIMD 비활성화 | SIMD 활성화 | 성능 향상 |
+| ------ | ------------- | ----------- | --------- |
+| 덧셈   | 15ms          | 4ms         | 3.75x     |
+| 내적   | 12ms          | 3ms         | 4x        |
+| 정규화 | 20ms          | 6ms         | 3.33x     |
 
 ### 메모리 사용량
 
-| 정밀도 | 1M 요소 메모리 | 10M 요소 메모리 |
-|--------|----------------|-----------------|
-| float32 | 4MB | 40MB |
-| float64 | 8MB | 80MB |
+| 정밀도  | 1M 요소 메모리 | 10M 요소 메모리 |
+| ------- | -------------- | --------------- |
+| float32 | 4MB            | 40MB            |
+| float64 | 8MB            | 80MB            |
 
 ## 모범 사례
 

@@ -26,11 +26,11 @@ const stream = new DataStream({
   concurrency: 4,
   onProgress: (progress, processed, total) => {
     console.log(`${(progress * 100).toFixed(1)}% 완료`);
-  }
+  },
 });
 
 // 데이터 처리
-const result = await stream.process(largeDataArray, async (chunk) => {
+const result = await stream.process(largeDataArray, async chunk => {
   return chunk.map(item => processItem(item));
 });
 ```
@@ -43,13 +43,13 @@ const result = await stream.process(largeDataArray, async (chunk) => {
 
 ```typescript
 interface DataStreamOptions {
-  chunkSize?: number;                    // 청크 크기 (기본값: 1000)
-  concurrency?: number;                  // 동시 처리 수준 (기본값: 4)
-  onProgress?: ProgressCallback;         // 진행률 콜백
-  retryStrategy?: RetryStrategy;         // 재시도 전략
+  chunkSize?: number; // 청크 크기 (기본값: 1000)
+  concurrency?: number; // 동시 처리 수준 (기본값: 4)
+  onProgress?: ProgressCallback; // 진행률 콜백
+  retryStrategy?: RetryStrategy; // 재시도 전략
   concurrencyStrategy?: ConcurrencyStrategy; // 동시성 전략
-  memoryThreshold?: number;              // 메모리 임계값 (MB)
-  enableBackpressure?: boolean;          // 백프레셔 활성화
+  memoryThreshold?: number; // 메모리 임계값 (MB)
+  enableBackpressure?: boolean; // 백프레셔 활성화
 }
 ```
 
@@ -71,10 +71,8 @@ interface DataStreamOptions {
 **예제:**
 
 ```typescript
-const result = await stream.process(users, async (userChunk) => {
-  return await Promise.all(
-    userChunk.map(user => updateUserProfile(user))
-  );
+const result = await stream.process(users, async userChunk => {
+  return await Promise.all(userChunk.map(user => updateUserProfile(user)));
 });
 
 console.log(`처리된 아이템: ${result.totalProcessed}`);
@@ -94,7 +92,7 @@ const processedData = await stream
   .map(item => ({
     ...item,
     processed: true,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   }))
   .reduce((acc, item) => acc + item.value, 0);
 ```
@@ -134,7 +132,7 @@ const stream = new DataStream({
   concurrencyStrategy: new AdaptiveConcurrencyStrategy(8, 1024),
   onProgress: (progress, processed, total) => {
     console.log(`메모리 사용량 모니터링: ${progress * 100}%`);
-  }
+  },
 });
 ```
 
@@ -149,7 +147,7 @@ const stream = new DataStream({
     if (progress < 1.0) {
       console.log(`재시도 중... ${processed}/${total}`);
     }
-  }
+  },
 });
 ```
 
@@ -160,7 +158,7 @@ const stream = new DataStream({
 const logProcessor = new DataStream({
   chunkSize: 5000,
   concurrency: 6,
-  enableBackpressure: true
+  enableBackpressure: true,
 });
 
 const analytics = await logProcessor
@@ -169,13 +167,16 @@ const analytics = await logProcessor
   .map(entry => ({
     timestamp: new Date(entry.timestamp),
     message: entry.message,
-    userId: extractUserId(entry.context)
+    userId: extractUserId(entry.context),
   }))
-  .reduce((stats, entry) => {
-    stats.errorCount++;
-    stats.userErrors[entry.userId] = (stats.userErrors[entry.userId] || 0) + 1;
-    return stats;
-  }, { errorCount: 0, userErrors: {} });
+  .reduce(
+    (stats, entry) => {
+      stats.errorCount++;
+      stats.userErrors[entry.userId] = (stats.userErrors[entry.userId] || 0) + 1;
+      return stats;
+    },
+    { errorCount: 0, userErrors: {} }
+  );
 ```
 
 ## 성능 최적화
@@ -186,13 +187,13 @@ const analytics = await logProcessor
 // 메모리 제약이 있는 환경
 const memoryConstrainedStream = new DataStream({
   chunkSize: 100,
-  concurrency: 2
+  concurrency: 2,
 });
 
 // 고성능 서버 환경
 const highPerformanceStream = new DataStream({
   chunkSize: 10000,
-  concurrency: 16
+  concurrency: 16,
 });
 ```
 
@@ -204,7 +205,7 @@ const stream = new DataStream({
     const memoryUsage = process.memoryUsage();
     console.log(`진행률: ${(progress * 100).toFixed(1)}%`);
     console.log(`메모리 사용량: ${(memoryUsage.heapUsed / 1024 / 1024).toFixed(1)}MB`);
-  }
+  },
 });
 ```
 
@@ -212,11 +213,11 @@ const stream = new DataStream({
 
 ```typescript
 try {
-  const result = await stream.process(data, async (chunk) => {
+  const result = await stream.process(data, async chunk => {
     // 일부 청크에서 실패할 수 있는 처리
     return await riskyProcessing(chunk);
   });
-  
+
   if (result.errors.length > 0) {
     console.warn(`${result.errors.length}개 청크 처리 실패`);
     result.errors.forEach(error => {

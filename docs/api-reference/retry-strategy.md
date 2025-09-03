@@ -21,9 +21,9 @@ import { ExponentialBackoffRetryStrategy } from '@/lib/utils/retry-strategy';
 
 // 기본 지수 백오프 전략
 const retryStrategy = new ExponentialBackoffRetryStrategy(
-  3,     // 최대 재시도 횟수
-  1000,  // 초기 지연 시간 (ms)
-  2      // 백오프 배수
+  3, // 최대 재시도 횟수
+  1000, // 초기 지연 시간 (ms)
+  2 // 백오프 배수
 );
 
 // 재시도가 필요한 작업 실행
@@ -107,9 +107,9 @@ const data = await strategy.execute(async () => {
 **지연 시간 계산 공식:**
 
 ```typescript
-delay = initialDelay * (backoffMultiplier ^ attemptNumber)
-if (jitter) delay = delay * (0.5 + Math.random() * 0.5)
-delay = Math.min(delay, maxDelay)
+delay = initialDelay * (backoffMultiplier ^ attemptNumber);
+if (jitter) delay = delay * (0.5 + Math.random() * 0.5);
+delay = Math.min(delay, maxDelay);
 ```
 
 ## 고급 사용법
@@ -120,9 +120,11 @@ delay = Math.min(delay, maxDelay)
 class CustomRetryStrategy extends ExponentialBackoffRetryStrategy {
   shouldRetry(error: Error, attemptNumber: number): boolean {
     // 특정 에러만 재시도
-    if (error.message.includes('ECONNRESET') || 
-        error.message.includes('ETIMEDOUT') ||
-        error.message.includes('Rate limited')) {
+    if (
+      error.message.includes('ECONNRESET') ||
+      error.message.includes('ETIMEDOUT') ||
+      error.message.includes('Rate limited')
+    ) {
       return super.shouldRetry(error, attemptNumber);
     }
     return false;
@@ -140,14 +142,14 @@ class HttpRetryStrategy extends ExponentialBackoffRetryStrategy {
     // HTTP 에러 처리
     if (error.message.includes('HTTP')) {
       const statusCode = parseInt(error.message.match(/HTTP (\d+)/)?.[1] || '0');
-      
+
       // 5xx 서버 에러와 429 Rate Limit만 재시도
       if (statusCode >= 500 || statusCode === 429) {
         return super.shouldRetry(error, attemptNumber);
       }
       return false;
     }
-    
+
     return super.shouldRetry(error, attemptNumber);
   }
 }
@@ -158,19 +160,19 @@ class HttpRetryStrategy extends ExponentialBackoffRetryStrategy {
 ```typescript
 async function connectToDatabase() {
   const retryStrategy = new ExponentialBackoffRetryStrategy(
-    5,     // 최대 5회 재시도
-    2000,  // 2초 초기 지연
-    1.5,   // 1.5배씩 증가
-    15000  // 최대 15초 지연
+    5, // 최대 5회 재시도
+    2000, // 2초 초기 지연
+    1.5, // 1.5배씩 증가
+    15000 // 최대 15초 지연
   );
 
   return await retryStrategy.execute(async () => {
     const connection = await createConnection({
       host: 'localhost',
       port: 5432,
-      database: 'myapp'
+      database: 'myapp',
     });
-    
+
     // 연결 테스트
     await connection.query('SELECT 1');
     return connection;
@@ -183,26 +185,26 @@ async function connectToDatabase() {
 ```typescript
 async function uploadFile(file: File) {
   const uploadStrategy = new ExponentialBackoffRetryStrategy(
-    3,     // 최대 3회 재시도
-    1000,  // 1초 초기 지연
-    2,     // 2배씩 증가
+    3, // 최대 3회 재시도
+    1000, // 1초 초기 지연
+    2, // 2배씩 증가
     10000, // 최대 10초 지연
-    true   // 지터 활성화
+    true // 지터 활성화
   );
 
   return await uploadStrategy.execute(async () => {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     const response = await fetch('/api/upload', {
       method: 'POST',
-      body: formData
+      body: formData,
     });
-    
+
     if (!response.ok) {
       throw new Error(`Upload failed: HTTP ${response.status}`);
     }
-    
+
     return response.json();
   });
 }
@@ -235,9 +237,9 @@ class ApiClient {
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -254,28 +256,20 @@ const users = await api.get<User[]>('/api/users');
 ### 배치 작업 처리
 
 ```typescript
-async function processBatchWithRetry<T>(
-  items: T[],
-  processor: (item: T) => Promise<void>,
-  batchSize: number = 10
-) {
+async function processBatchWithRetry<T>(items: T[], processor: (item: T) => Promise<void>, batchSize: number = 10) {
   const retryStrategy = new ExponentialBackoffRetryStrategy(3, 500, 1.5);
-  
+
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
-    
-    await Promise.all(
-      batch.map(item => 
-        retryStrategy.execute(() => processor(item))
-      )
-    );
+
+    await Promise.all(batch.map(item => retryStrategy.execute(() => processor(item))));
   }
 }
 
 // 사용 예제
 await processBatchWithRetry(
   userIds,
-  async (userId) => {
+  async userId => {
     await updateUserProfile(userId);
   },
   5
@@ -288,24 +282,24 @@ await processBatchWithRetry(
 class LoggingRetryStrategy extends ExponentialBackoffRetryStrategy {
   async execute<T>(operation: () => Promise<T>): Promise<T> {
     let lastError: Error | null = null;
-    
+
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
         if (attempt > 0) {
           console.log(`Retry attempt ${attempt}/${this.maxRetries}`);
         }
-        
+
         const result = await operation();
-        
+
         if (attempt > 0) {
           console.log(`Operation succeeded after ${attempt} retries`);
         }
-        
+
         return result;
       } catch (error) {
         lastError = error as Error;
         console.warn(`Attempt ${attempt + 1} failed:`, error.message);
-        
+
         if (attempt < this.maxRetries && this.shouldRetry(lastError, attempt)) {
           const delay = this.getDelay(attempt);
           console.log(`Waiting ${delay}ms before retry...`);
@@ -313,7 +307,7 @@ class LoggingRetryStrategy extends ExponentialBackoffRetryStrategy {
         }
       }
     }
-    
+
     console.error(`All ${this.maxRetries + 1} attempts failed`);
     throw lastError;
   }
