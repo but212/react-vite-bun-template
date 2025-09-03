@@ -308,24 +308,29 @@ export interface ConcurrencyStrategy {
 
 /**
  * 적응형 동시성 제어 전략 클래스입니다.
- * 데이터 크기에 따라 워커 수를 자동 조절하고 메모리 임계값을 기반으로 백프레셔를 제어합니다.
+ * 데이터 크기와 시스템 메모리 상황에 따라 워커 수(동시 실행 수)를 자동 조정하고,
+ * 백프레셔(Backpressure) 콜백을 통해 메모리 임계값 초과 시 처리 속도를 일시적으로 조절합니다.
+ *
+ * @remarks
+ * - 데이터셋 크기가 작으면 자동으로 낮은 동시성(2~4)만 사용하여 리소스 낭비를 방지합니다.
+ * - 메모리 사용량이 임계값(`memoryThreshold`)을 초과하면 백프레셔가 동작하여 워커가 일시정지됩니다.
+ * - 커스텀 `backpressureCallback`을 제공하면 메모리 상황에 따른 세밀한 제어가 가능합니다.
  *
  * @example
  * ```typescript
- * // 기본 설정 사용
+ * // 기본 설정: 최대 4동시성, 512MB 초과 시 일시정지
  * const strategy = new AdaptiveConcurrencyStrategy();
  *
- * // 커스텀 설정
+ * // 커스텀 설정: 최대 8동시성, 1024MB 초과 시 사용자가 정의한 콜백 사용
  * const customStrategy = new AdaptiveConcurrencyStrategy(
- *   8,    // 최대 동시성
- *   1024, // 메모리 임계값 (MB)
+ *   8,    // 최대 동시성 워커 수
+ *   1024, // 메모리 임계값(MB)
  *   async (memoryUsage, activeWorkers) => {
- *     // 커스텀 백프레셔 로직
  *     if (memoryUsage > 2048) {
- *       await cleanup(); // 메모리 정리
- *       return false; // 일시 중단
+ *       await cleanup(); // 커스텀 메모리 정리
+ *       return false;   // 일시정지 유지
  *     }
- *     return true;
+ *     return true; // 계속 진행
  *   }
  * );
  *
@@ -333,33 +338,61 @@ export interface ConcurrencyStrategy {
  * ```
  */
 export class AdaptiveConcurrencyStrategy implements ConcurrencyStrategy {
+  /**
+   * 최대 동시 실행 워커 수
+   * @defaultValue 4
+   */
   private readonly maxConcurrency: number;
+  /**
+   * 워커 일시정지 트리거가 되는 메모리 임계값(MB)
+   * @defaultValue 512
+   */
   private readonly memoryThreshold: number;
+  /**
+   * 백프레셔 제어를 위한 커스텀 콜백
+   * @see BackpressureCallback
+   */
   private readonly backpressureCallback?: BackpressureCallback;
 
-  constructor(
-    maxConcurrency: number = 4,
-    memoryThreshold: number = 512, // MB
-    backpressureCallback?: BackpressureCallback
-  ) {
+  /**
+   * 새로운 적응형 동시성 제어 전략을 생성합니다.
+   * @param maxConcurrency 최대 동시 워커 수 (기본값: 4)
+   * @param memoryThreshold 메모리 임계값(MB, 기본값: 512)
+   * @param backpressureCallback 메모리 초과 시 처리 제어 콜백 (생략 가능)
+   */
+  constructor(maxConcurrency: number = 4, memoryThreshold: number = 512, backpressureCallback?: BackpressureCallback) {
     this.maxConcurrency = maxConcurrency;
     this.memoryThreshold = memoryThreshold;
     this.backpressureCallback = backpressureCallback;
   }
 
+  /**
+   * 전체 데이터 아이템 수에 따라 적절한 워커 수(동시성)를 반환합니다.
+   * - 100개 미만: 2 또는 maxConcurrency 중 더 작은 값
+   * - 1000개 미만: 4 또는 maxConcurrency 중 더 작은 값
+   * - 그 이상: maxConcurrency
+   * @param totalItems 전체 데이터 항목 수
+   * @returns 권장 워커 수
+   */
   getWorkerCount(totalItems: number): number {
-    // 작은 데이터셋에는 낮은 동시성 사용
     if (totalItems < 100) return Math.min(2, this.maxConcurrency);
     if (totalItems < 1000) return Math.min(4, this.maxConcurrency);
     return this.maxConcurrency;
   }
 
+  /**
+   * 현재 메모리 사용량 또는 워커 수에 따라 일시정지할지 여부를 결정합니다.
+   * @param activeWorkers 현재 활성 워커 수
+   * @param memoryUsage 현재 메모리 사용량(MB)
+   * @returns true: 일시정지 필요, false: 계속 진행
+   */
   async shouldPause(activeWorkers: number, memoryUsage: number): Promise<boolean> {
     if (memoryUsage > this.memoryThreshold) {
       if (this.backpressureCallback) {
+        // 커스텀 콜백의 반환값이 true면 계속, false면 일시정지
         return !(await this.backpressureCallback(memoryUsage, activeWorkers));
       }
-      return true; // 기본적으로 메모리 임계값 초과 시 일시정지
+      return true;
     }
     return false;
   }

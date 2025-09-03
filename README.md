@@ -28,23 +28,23 @@ bun run dev
 
 ## 사용 가능한 스크립트
 
-| 스크립트        | 설명                        |
-| --------------- | --------------------------- |
-| `dev`           | HTTP 개발 서버 실행        |
-| `build`         | 타입체킹 포함 프로덕션 빌드 |
-| `preview`       | 프로덕션 빌드 미리보기      |
-| `typecheck`     | 타입스크립트 타입 검사      |
-| `test`          | 단위 테스트 실행            |
-| `test:watch`    | 워치 모드 테스트            |
-| `test:ui`       | 브라우저 UI 테스트          |
-| `test:coverage` | 커버리지 리포트 생성        |
-| `test:e2e`      | E2E 테스트 실행 (Playwright) |
-| `test:e2e:ui`   | E2E 테스트 UI 모드 실행     |
-| `test:e2e:report` | E2E 테스트 결과 리포트 보기 |
-| `lint`          | ESLint 실행                 |
-| `lint:fix`      | ESLint 오류 자동 수정       |
-| `format`        | Prettier로 코드 포맷팅      |
-| `clean`         | 빌드 산출물 제거            |
+| 스크립트          | 설명                         |
+| ----------------- | ---------------------------- |
+| `dev`             | HTTP 개발 서버 실행          |
+| `build`           | 타입체킹 포함 프로덕션 빌드  |
+| `preview`         | 프로덕션 빌드 미리보기       |
+| `typecheck`       | 타입스크립트 타입 검사       |
+| `test`            | 단위 테스트 실행             |
+| `test:watch`      | 워치 모드 테스트             |
+| `test:ui`         | 브라우저 UI 테스트           |
+| `test:coverage`   | 커버리지 리포트 생성         |
+| `test:e2e`        | E2E 테스트 실행 (Playwright) |
+| `test:e2e:ui`     | E2E 테스트 UI 모드 실행      |
+| `test:e2e:report` | E2E 테스트 결과 리포트 보기  |
+| `lint`            | ESLint 실행                  |
+| `lint:fix`        | ESLint 오류 자동 수정        |
+| `format`          | Prettier로 코드 포맷팅       |
+| `clean`           | 빌드 산출물 제거             |
 
 ## CI에 꼭 필요한 변수
 
