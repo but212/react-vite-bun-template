@@ -114,7 +114,7 @@ export interface UseBitReturn {
  * }
  * ```
  */
-export function useBit(options: UseBitOptions = {}): UseBitReturn {
+export function useBit(): UseBitReturn {
   // (enableValidation 옵션은 현재 사용되지 않으므로, 혼란 방지를 위해 변수 할당을 제거합니다.)
 
   // 기본 비트 조작 메서드들을 useCallback으로 최적화
