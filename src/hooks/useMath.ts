@@ -6,6 +6,9 @@ import {
   type StatisticsResult,
   type Vector,
 } from '../lib/utils/math-engine';
+import { VectorEngine } from '../lib/utils/vector-engine';
+import { MatrixEngine } from '../lib/utils/matrix-engine';
+import { StatisticsEngine } from '../lib/utils/statistics-engine';
 
 export interface UseMathOptions extends MathEngineOptions {
   /**
@@ -44,9 +47,9 @@ export interface UseMathReturn {
 
   // 엔진 정보
   getEngineInfo: () => {
-    vectorEngine: any;
-    matrixEngine: any;
-    statisticsEngine: any;
+    vectorEngine: VectorEngine;
+    matrixEngine: MatrixEngine;
+    statisticsEngine: StatisticsEngine;
   };
 
   // 엔진 인스턴스 (고급 사용자용)

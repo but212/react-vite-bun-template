@@ -6,6 +6,7 @@ import BitUtils, {
   createBitLength,
   isValidBitLength,
 } from '../lib/utils/bit-utils';
+import type { CacheStats } from '../lib/utils/cache-strategy';
 
 export interface UseBitOptions {
   /**
@@ -47,8 +48,8 @@ export interface UseBitReturn {
   isValidBitLength: (length: number) => length is BitLengthWithZero;
   createBitLength: (length: number) => BitLengthWithZero;
   getCacheStats: () => {
-    powerOfTwoCache: any;
-    popCountCache: any;
+    powerOfTwoCache: CacheStats;
+    popCountCache: CacheStats;
     combinedHitRate: number;
   };
   clearAllCaches: () => void;
@@ -114,7 +115,7 @@ export interface UseBitReturn {
  * ```
  */
 export function useBit(options: UseBitOptions = {}): UseBitReturn {
-  const { enableValidation = true } = options;
+  const { enableValidation: _enableValidation = true } = options;
 
   // 기본 비트 조작 메서드들을 useCallback으로 최적화
   const isPowerOfTwo = useCallback((n: number) => BitUtils.isPowerOfTwo(n), []);

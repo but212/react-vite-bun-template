@@ -4,8 +4,8 @@
  */
 
 // 타입 헬퍼: 파이프라인에서 각 함수의 타입을 추론
-type Head<T extends readonly unknown[]> = T extends readonly [infer H, ...unknown[]] ? H : never;
-type Tail<T extends readonly unknown[]> = T extends readonly [unknown, ...infer R] ? R : [];
+type _Head<T extends readonly unknown[]> = T extends readonly [infer H, ...unknown[]] ? H : never;
+type _Tail<T extends readonly unknown[]> = T extends readonly [unknown, ...infer R] ? R : [];
 
 type PipeFn<T, U> = (value: T) => U;
 type AsyncPipeFn<T, U> = (value: T) => U | Promise<U>;
@@ -33,6 +33,7 @@ interface Pipe {
     fn6: PipeFn<Y, Z>
   ): (value: T) => Z;
   // 더 많은 함수를 위한 일반적인 케이스
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (...fns: PipeFn<any, any>[]): (value: any) => any;
 }
 
@@ -64,6 +65,7 @@ interface PipeAsync {
     fn6: AsyncPipeFn<Y, Z>
   ): (value: T) => Promise<Z>;
   // 더 많은 함수를 위한 일반적인 케이스
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (...fns: AsyncPipeFn<any, any>[]): (value: any) => Promise<any>;
 }
 
@@ -93,6 +95,7 @@ interface PipeAsync {
  * console.log(identity(42)); // 42
  * ```
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const pipe: Pipe = (...fns: PipeFn<any, any>[]) => {
   // Validate all arguments are functions upfront
   for (const fn of fns) {
@@ -102,9 +105,11 @@ export const pipe: Pipe = (...fns: PipeFn<any, any>[]) => {
   }
 
   if (fns.length === 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (value: any) => value;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (value: any) => {
     try {
       return fns.reduce((acc, fn) => fn(acc), value);
@@ -142,6 +147,7 @@ export const pipe: Pipe = (...fns: PipeFn<any, any>[]) => {
  * console.log(await identityAsync(42)); // 42
  * ```
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const pipeAsync: PipeAsync = (...fns: AsyncPipeFn<any, any>[]) => {
   // Validate all arguments are functions upfront
   for (const fn of fns) {
@@ -151,9 +157,11 @@ export const pipeAsync: PipeAsync = (...fns: AsyncPipeFn<any, any>[]) => {
   }
 
   if (fns.length === 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return async (value: any) => value;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return async (value: any) => {
     try {
       let result = value;
@@ -188,9 +196,10 @@ export const pipeAsync: PipeAsync = (...fns: AsyncPipeFn<any, any>[]) => {
  * console.log(composed(3)); // 8
  * ```
  */
-export const compose: Pipe = (...fns: PipeFn<any, any>[]) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function compose<T>(...fns: PipeFn<any, any>[]): (value: T) => any {
   return pipe(...fns.reverse());
-};
+}
 
 /**
  * 비동기 컴포즈 유틸리티입니다.
@@ -199,9 +208,10 @@ export const compose: Pipe = (...fns: PipeFn<any, any>[]) => {
  * @param fns 적용할 함수들의 목록 (우측부터 실행)
  * @returns 입력값을 받아 모든 함수를 역순으로 적용한 결과 Promise를 반환하는 함수
  */
-export const composeAsync: PipeAsync = (...fns: AsyncPipeFn<any, any>[]) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function composeAsync<T>(...fns: AsyncPipeFn<any, any>[]): (value: T) => Promise<any> {
   return pipeAsync(...fns.reverse());
-};
+}
 
 /**
  * 조건부 파이프 유틸리티입니다.
@@ -306,14 +316,21 @@ export function pipeParallelAsync<T, U extends readonly unknown[]>(
  * console.log(pipeline(0)); // 0 (기본값)
  * ```
  */
-export function pipeSafe<T>(defaultValue: T, onError?: (error: Error, value: any) => void) {
+export function pipeSafe<T, R>(
+  defaultValue: R,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  errorHandler?: (error: Error, input: any) => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): (...fns: PipeFn<any, any>[]) => (value: T) => R {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (...fns: PipeFn<any, any>[]) => {
-    return (value: any): T => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (value: any): R => {
       try {
         return pipe(...fns)(value);
       } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
-        onError?.(err, value);
+        errorHandler?.(err, value);
         return defaultValue;
       }
     };

@@ -27,7 +27,7 @@ import {
  * };
  * ```
  */
-export interface UseStreamOptions<T> extends DataStreamOptions {
+export interface UseStreamOptions<_T> extends DataStreamOptions {
   /**
    * 스트림 인스턴스를 재사용할지 여부입니다.
    * 
