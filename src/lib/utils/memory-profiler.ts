@@ -72,7 +72,7 @@ export class MemoryProfiler {
       return {
         used: Math.round(used * 100) / 100,
         total: Math.round(total * 100) / 100,
-        percentage: total > 0 ? Math.round((used / total) * 10000) / 100 : 0,
+        percentage: total > 0 ? Math.min(Math.round((used / total) * 10000) / 100, 100) : 0,
         timestamp: Date.now(),
       };
     } else if (typeof process !== 'undefined' && process.memoryUsage) {
@@ -83,7 +83,7 @@ export class MemoryProfiler {
       return {
         used: Math.round(used * 100) / 100,
         total: Math.round(total * 100) / 100,
-        percentage: total > 0 ? Math.round((used / total) * 10000) / 100 : 0,
+        percentage: total > 0 ? Math.min(Math.round((used / total) * 10000) / 100, 100) : 0,
         timestamp: Date.now(),
       };
     } else {
