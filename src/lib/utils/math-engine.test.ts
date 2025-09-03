@@ -67,7 +67,7 @@ describe('리팩토링된 MathEngine', () => {
       const a = engine.vectorFromArray([1, 2]);
       const b = engine.vectorFromArray([1, 2, 3]);
 
-      await expect(engine.addVectors(a, b)).rejects.toThrow('벡터 차원이 일치하지 않습니다');
+      await expect(engine.addVectors(a, b)).rejects.toThrow('벡터 차원이 일치하지 않습니다: 2 vs 3');
     });
   });
 

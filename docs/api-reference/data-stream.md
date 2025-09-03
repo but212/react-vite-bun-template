@@ -75,7 +75,7 @@ const result = await stream.process(users, async userChunk => {
   return await Promise.all(userChunk.map(user => updateUserProfile(user)));
 });
 
-console.log(`처리된 아이템: ${result.totalProcessed}`);
+console.log(`처리된 아이템: ${result.metrics.processedItems}`);
 console.log(`처리 시간: ${result.metrics.totalTime}ms`);
 ```
 
