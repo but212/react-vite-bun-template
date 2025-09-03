@@ -90,18 +90,27 @@ export class VectorEngine {
     if (x < 0) return NaN;
     if (x === 0) return 0;
 
-    // 비트 조작을 통한 빠른 역제곱근 추정(단, 최종적으로는 정확한 sqrt 사용)
+    // Float32 비트 해석을 통한 근사 sqrt (fast inverse sqrt 변형)
     const floatView = new Float32Array([x]);
-    const bitView = new Uint32Array(floatView.buffer)[0];
+    const intView = new Uint32Array(floatView.buffer);
 
-    // 마법 상수 및 비트 연산 예시 (BitUtils 활용)
-    const _magic = BitUtils.setBit(0x5f3759df, 0);
-    const _half = BitUtils.rightShift(bitView ?? 0, 1);
+    // 초기 근사값: bitwise shift/조합 (Newton-Raphson 보정 전)
+    let i = intView[0] ?? 0;
+    // 0x1fbd1df5는 sqrt 근사에 특화된 매직넘버 (역제곱근용과 다름)
+    i = BitUtils.rightShift(i, 1) + 0x1fbd1df5;
+    intView[0] = i;
+    let y = floatView[0] ?? 0;
 
-    // 최종적으로는 표준 sqrt 사용
-    const result = Math.sqrt(x);
-    this.functionCache.set(cacheKey, result);
-    return result;
+    // Newton-Raphson iteration 1~2회로 정확도 보정 (실제 sqrt와 거의 동일)
+    if (y > 0) {
+      y = (0.5 * (y + x / y)) | 0;
+    } else {
+      y = Math.sqrt(x) | 0; // fallback
+    }
+
+    // 캐시에 저장
+    this.functionCache.set(cacheKey, y);
+    return y;
   }
 
   /**

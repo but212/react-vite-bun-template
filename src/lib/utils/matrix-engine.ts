@@ -111,14 +111,24 @@ export class MatrixEngine {
         data: number[];
         row: number;
         col: number;
-        blockSize: number;
+        resultRows: number;
+        resultCols: number;
       }> = [];
 
       for (const index of indices) {
         const block = blocks[index];
         if (!block) continue;
 
-        const result = this.computeMatrixBlock(block.aBlock, block.bBlock, block.resultRow, block.resultCol);
+        const result = this.computeMatrixBlock(
+          block.aBlock,
+          block.bBlock,
+          block.resultRow,
+          block.resultCol,
+          block.aRows,
+          block.aCols,
+          block.bRows,
+          block.bCols
+        );
         blockResults.push(result);
       }
 
@@ -236,25 +246,42 @@ export class MatrixEngine {
     bBlock: number[];
     resultRow: number;
     resultCol: number;
+    aRows: number;
+    aCols: number;
+    bRows: number;
+    bCols: number;
   }> {
     const blocks: Array<{
       aBlock: number[];
       bBlock: number[];
       resultRow: number;
       resultCol: number;
+      aRows: number;
+      aCols: number;
+      bRows: number;
+      bCols: number;
     }> = [];
 
     for (let i = 0; i < a.rows; i += blockSize) {
       for (let j = 0; j < b.cols; j += blockSize) {
         for (let k = 0; k < a.cols; k += blockSize) {
-          const aBlock = this.extractMatrixBlock(a, i, k, blockSize, blockSize);
-          const bBlock = this.extractMatrixBlock(b, k, j, blockSize, blockSize);
+          const aRows = Math.min(blockSize, a.rows - i);
+          const aCols = Math.min(blockSize, a.cols - k);
+          const bRows = Math.min(blockSize, b.rows - k);
+          const bCols = Math.min(blockSize, b.cols - j);
+
+          const aBlock = this.extractMatrixBlock(a, i, k, aRows, aCols);
+          const bBlock = this.extractMatrixBlock(b, k, j, bRows, bCols);
 
           blocks.push({
             aBlock,
             bBlock,
             resultRow: i,
             resultCol: j,
+            aRows,
+            aCols,
+            bRows,
+            bCols,
           });
         }
       }
@@ -295,33 +322,38 @@ export class MatrixEngine {
     aBlock: number[],
     bBlock: number[],
     resultRow: number,
-    resultCol: number
+    resultCol: number,
+    aRows: number,
+    aCols: number,
+    bRows: number,
+    bCols: number
   ): {
     data: number[];
     row: number;
     col: number;
-    blockSize: number;
+    resultRows: number;
+    resultCols: number;
   } {
-    // 간단한 블록 곱셈 구현
-    const blockSize = Math.sqrt(aBlock.length);
-    const result: number[] = new Array(aBlock.length).fill(0);
+    // 정확한 블록 곱셈 구현 (A[aRows x aCols] * B[bRows x bCols] = C[aRows x bCols])
+    const resultRows = aRows;
+    const resultCols = bCols;
+    const result: number[] = new Array(resultRows * resultCols).fill(0);
 
-    for (let i = 0; i < blockSize; i++) {
-      for (let j = 0; j < blockSize; j++) {
-        for (let k = 0; k < blockSize; k++) {
-          const aIndex = i * blockSize + k;
-          const bIndex = k * blockSize + j;
-          const resultIndex = i * blockSize + j;
+    for (let i = 0; i < resultRows; i++) {
+      for (let j = 0; j < resultCols; j++) {
+        let sum = 0;
+        for (let k = 0; k < aCols; k++) {
+          const aIndex = i * aCols + k;
+          const bIndex = k * bCols + j;
 
           const aValue = aBlock[aIndex];
           const bValue = bBlock[bIndex];
           if (aValue !== undefined && bValue !== undefined) {
-            const currentResult = result[resultIndex];
-            if (currentResult !== undefined) {
-              result[resultIndex] = currentResult + aValue * bValue;
-            }
+            sum += aValue * bValue;
           }
         }
+        const resultIndex = i * resultCols + j;
+        result[resultIndex] = sum;
       }
     }
 
@@ -329,7 +361,8 @@ export class MatrixEngine {
       data: result,
       row: resultRow,
       col: resultCol,
-      blockSize: Math.floor(blockSize),
+      resultRows,
+      resultCols,
     };
   }
 
@@ -342,14 +375,15 @@ export class MatrixEngine {
       data: number[];
       row: number;
       col: number;
-      blockSize: number;
+      resultRows: number;
+      resultCols: number;
     }
   ): void {
-    const { data, row, col, blockSize } = blockResult;
+    const { data, row, col, resultRows, resultCols } = blockResult;
 
-    for (let i = 0; i < blockSize; i++) {
-      for (let j = 0; j < blockSize; j++) {
-        const blockIndex = i * blockSize + j;
+    for (let i = 0; i < resultRows; i++) {
+      for (let j = 0; j < resultCols; j++) {
+        const blockIndex = i * resultCols + j;
         const matrixRow = row + i;
         const matrixCol = col + j;
 
@@ -357,7 +391,8 @@ export class MatrixEngine {
           const matrixIndex = matrixRow * targetMatrix.cols + matrixCol;
           const value = data[blockIndex];
           if (value !== undefined) {
-            targetMatrix.data[matrixIndex] = value;
+            const currentValue = targetMatrix.data[matrixIndex] ?? 0;
+            targetMatrix.data[matrixIndex] = currentValue + value;
           }
         }
       }
