@@ -1,14 +1,13 @@
-import { describe, test, expect, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { i18n } from '../i18n';
 import {
   AdaptiveConcurrencyStrategy,
   DataStream,
-  ExponentialBackoffRetryStrategy,
   type BackpressureCallback,
   type ChunkView,
   type ConcurrencyStrategy,
-  type RetryStrategy,
 } from './data-stream';
-import { i18n } from '../i18n';
+import { ExponentialBackoffRetryStrategy, type RetryStrategy } from './retry-strategy';
 
 // 유틸리티 함수: 실행 순서 배열이 병렬(인터리브)로 실행되었는지 확인합니다.
 // 예: [1, 2, -1, -2] -> 1번 시작, 2번 시작, 1번 종료, 2번 종료 (병렬)
