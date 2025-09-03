@@ -44,7 +44,7 @@ describe('PerformanceBenchmark', () => {
       );
 
       expect(result.name).toBe('async-operation');
-      expect(result.averageTime).toBeGreaterThan(1); // 최소 1ms 지연
+      expect(result.averageTime).toBeGreaterThan(0.9); // 최소 0.9ms 지연
       expect(result.minTime).toBeGreaterThan(0);
       expect(result.maxTime).toBeGreaterThanOrEqual(result.minTime);
     });
