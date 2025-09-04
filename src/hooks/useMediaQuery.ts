@@ -24,24 +24,17 @@ export function useMediaQuery(query: string): boolean {
   });
 
   useEffect(() => {
-    // 미디어 쿼리 객체 생성
-    const mediaQueryList = window.matchMedia(query);
+    if (typeof window === 'undefined') return;
 
-    // 미디어 쿼리 변경을 감지하는 이벤트 리스너
+    const mediaQueryList = window.matchMedia(query);
     const listener = (event: MediaQueryListEvent) => setMatches(event.matches);
 
-    // 초기 상태 설정
-    setMatches(mediaQueryList.matches);
-
-    // 이벤트 리스너 등록
     mediaQueryList.addEventListener('change', listener);
 
-    // 언마운트 시 리스너 해제
     return () => {
       mediaQueryList.removeEventListener('change', listener);
     };
   }, [query]);
 
-  // 미디어 쿼리 일치 여부 반환
   return matches;
 }
