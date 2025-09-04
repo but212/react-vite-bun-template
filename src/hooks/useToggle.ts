@@ -10,12 +10,12 @@ import { useCallback, useState } from 'react';
  * const [isOpen, toggleOpen] = useToggle();
  * // isOpen이 true/false로 토글됨
  */
-export function useToggle(initialState = false): [boolean, () => void] {
+export function useToggle(initialState = false) {
   const [state, setState] = useState(initialState);
 
-  const toggle = useCallback(() => {
-    setState(prevState => !prevState);
+  const toggle = useCallback((value?: boolean) => {
+    setState(prevState => (value !== undefined ? value : !prevState));
   }, []);
 
-  return [state, toggle];
+  return [state, toggle] as const;
 }
