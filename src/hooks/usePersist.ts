@@ -104,7 +104,8 @@ export default function usePersist<T>(key: string, initialValue: T, options: Per
   /**
    * localStorage 쓰기를 디바운스합니다.
    */
-  const debouncedWrite = useRef(
+  type DebouncedFunction = ((...args: unknown[]) => void) & { cancel: () => void };
+  const debouncedWrite = useRef<DebouncedFunction>(
     debounce((...args: unknown[]) => {
       const [k, v] = args as [string, T];
       if (!isClient) return;
@@ -114,7 +115,7 @@ export default function usePersist<T>(key: string, initialValue: T, options: Per
         // eslint-disable-next-line no-console
         console.warn(`Error setting localStorage key "${k}":`, error);
       }
-    }, debounceMs)
+    }, debounceMs) as DebouncedFunction
   );
 
   /**
@@ -186,6 +187,9 @@ export default function usePersist<T>(key: string, initialValue: T, options: Per
    */
   const setValueImmediate = useCallback(
     (newValue: T | ((prev: T) => T)) => {
+      if (debouncedWrite.current && typeof debouncedWrite.current.cancel === 'function') {
+        debouncedWrite.current.cancel();
+      }
       setValue(prev => {
         const resolvedValue = typeof newValue === 'function' ? (newValue as (prev: T) => T)(prev) : newValue;
 
