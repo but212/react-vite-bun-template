@@ -53,6 +53,7 @@
     "graphql": "^16.9.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-hook-form": "^7.62.0",
     "react-router-dom": "^7.8.2",
     "tailwind-merge": "^3.3.1",
     "zustand": "^5.0.8"
