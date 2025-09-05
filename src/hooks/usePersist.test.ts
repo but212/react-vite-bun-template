@@ -234,7 +234,9 @@ describe('usePersist', () => {
     it('잘못된 JSON 파싱 시 초기값을 사용해야 한다', () => {
       localStorageMock.getItem.mockReturnValue('invalid-json');
 
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {
+        // 본문없음
+      });
 
       const { result } = renderHook(() => usePersist('test-key', 'initial'));
 
