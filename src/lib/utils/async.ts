@@ -13,7 +13,7 @@ export const sleep = (ms: number) => new Promise<void>(res => setTimeout(res, ms
  * @param wait 대기 시간(밀리초), 기본값 300ms
  * @returns 디바운스된 함수
  */
-export function debounce<T extends (...args: unknown[]) => void>(func: T, wait: number) {
+export function debounce<T extends (...args: unknown[]) => void>(func: T, wait: number = 300) {
   let timeout: ReturnType<typeof setTimeout> | null;
   const debounced = (...args: Parameters<T>) => {
     if (timeout) clearTimeout(timeout);
