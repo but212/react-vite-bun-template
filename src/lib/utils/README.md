@@ -70,7 +70,7 @@ import { BitUtils } from '@/lib/utils';
 const bitUtils = new BitUtils();
 
 // 비트 설정/해제
-bitUtils.setBit(0b1010, 1);     // 0b1110
+bitUtils.setBit(0b1010, 2);     // 0b1110
 bitUtils.clearBit(0b1110, 1);   // 0b1100
 bitUtils.toggleBit(0b1010, 0);  // 0b1011
 
