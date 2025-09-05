@@ -11,6 +11,7 @@ import { cn } from './cn';
 
 // env.ts 테스트
 import { getEnv } from './env';
+import { EnvError } from './errors';
 
 // object.ts 테스트
 import { clamp, omit, pick } from './object';
@@ -526,14 +527,14 @@ describe('env utility', () => {
 
   test('허용되지 않는 키 패턴이면 TypeError', () => {
     // VITE_ 접두사가 없거나 형식이 잘못된 경우
-    expect(() => getEnv('DEV')).toThrow(TypeError);
-    expect(() => getEnv('API_KEY')).toThrow(TypeError);
-    expect(() => getEnv('VITE-lower')).toThrow(TypeError);
+    expect(() => getEnv('DEV')).toThrow(EnvError);
+    expect(() => getEnv('API_KEY')).toThrow(EnvError);
+    expect(() => getEnv('VITE-lower')).toThrow(EnvError);
   });
 
   test('문자열이 아닌 키는 TypeError', () => {
     // @ts-expect-error 문자열이 아닌 키 테스트
-    expect(() => getEnv(123)).toThrow(TypeError);
+    expect(() => getEnv(123)).toThrow(EnvError);
   });
 });
 
