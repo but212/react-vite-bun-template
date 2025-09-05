@@ -22,7 +22,6 @@
 ### ⚙️ Configuration
 
 - [`env`](#env) - Vite 환경 변수 처리
-- [`retry-strategy`](#retry-strategy) - 재시도 전략
 
 ## 🚀 빠른 시작
 
