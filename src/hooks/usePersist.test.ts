@@ -195,6 +195,7 @@ describe('usePersist', () => {
         throw new Error('Storage error');
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const { result } = renderHook(() => usePersist('test-key', 'initial'));
@@ -210,6 +211,7 @@ describe('usePersist', () => {
         throw new Error('Storage error');
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const { result } = renderHook(() => usePersist('test-key', 'initial'));

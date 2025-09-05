@@ -126,7 +126,6 @@ export default function usePersist<T>(key: string, initialValue: T, options: Per
       return;
     }
     debouncedWrite.current(key, value);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, value]);
 
   /**
@@ -158,7 +157,6 @@ export default function usePersist<T>(key: string, initialValue: T, options: Per
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, initialValue, serializer, syncAcrossTabs, isClient]);
 
   /**

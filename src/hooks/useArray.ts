@@ -65,6 +65,7 @@ export default function useArray<T>(initialValue: T[]) {
     setValue(prev => {
       if (index < 0 || index >= prev.length) {
         if (import.meta.env.MODE === 'development') {
+          // eslint-disable-next-line no-console
           console.warn(`Invalid index ${index} for array of length ${prev.length}`);
         }
         return prev;
@@ -93,6 +94,7 @@ export default function useArray<T>(initialValue: T[]) {
     setValue(prev => {
       if (index < 0 || index >= prev.length) {
         if (import.meta.env.MODE === 'development') {
+          // eslint-disable-next-line no-console
           console.warn(`Invalid index ${index} for array of length ${prev.length}`);
         }
         return prev;
@@ -114,10 +116,11 @@ export default function useArray<T>(initialValue: T[]) {
       if (import.meta.env.MODE === 'development') {
         const invalids = indices.filter(index => index < 0 || index >= prev.length);
         if (invalids.length > 0) {
+          // eslint-disable-next-line no-console
           console.warn(`Invalid indices [${invalids.join(', ')}] for array of length ${prev.length}`);
         }
       }
-      let newValue = [...prev];
+      const newValue = [...prev];
       validIndices.forEach(index => {
         newValue.splice(index, 1);
       });
