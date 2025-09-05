@@ -20,7 +20,6 @@ const mockStorageEvent = (key: string, newValue: string | null, oldValue?: strin
     key,
     newValue,
     oldValue,
-    storageArea: localStorage,
   });
   window.dispatchEvent(event);
 };
